@@ -2,10 +2,13 @@
 **/dist
 **/server-output
 **/.next
+**/.vercel
 **/generated
 .git
 .env
 .env.*
+**/.env
+**/.env.*
 !.env.example
 .qa
 **/*.log
