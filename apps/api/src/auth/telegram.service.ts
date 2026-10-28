@@ -212,6 +212,10 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
   }
   async onModuleInit(): Promise<void> {
     if (this.runtime.offline || !this.runtime.telegram || !this.bot) return;
+    if (this.runtime.telegramSetup === false) {
+      await this.bot.init();
+      return;
+    }
     await this.setup();
     if (this.env.TELEGRAM_MODE === 'polling')
       this.polling = this.bot

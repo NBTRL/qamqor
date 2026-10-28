@@ -10,7 +10,11 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(
     AppModule.configure(
       process.env.VERCEL
-        ? { workers: false, telegram: process.env.TELEGRAM_MODE === 'webhook' }
+        ? {
+            workers: false,
+            telegram: process.env.TELEGRAM_MODE === 'webhook',
+            telegramSetup: false,
+          }
         : {},
     ),
     {

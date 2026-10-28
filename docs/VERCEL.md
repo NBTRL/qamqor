@@ -40,6 +40,8 @@ HTTP-процессы на Vercel не запускают фоновые вор�
 - Telegram только в Production: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`,
   `TELEGRAM_MODE=webhook`, `TELEGRAM_WEBHOOK_SECRET`.
   Webhook: `/api/v1/telegram/webhook`. Этот же бот не должен работать локально в polling.
+  Только daemon настраивает webhook и команды. HTTP API инициализирует обработку
+  обновлений без повторных изменений настроек бота при масштабировании.
 - `DEV_FAKE_TELEGRAM=false` во всех облачных окружениях.
 
 SMTP не предоставляется этими интеграциями. Для почтовых кодов, включая второй шаг

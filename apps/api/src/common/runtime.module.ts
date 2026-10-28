@@ -5,6 +5,7 @@ export interface RuntimeOptions {
   offline: boolean;
   workers: boolean;
   telegram: boolean;
+  telegramSetup?: boolean;
   backgroundIntervalMs?: number;
   queueDrainDelaySeconds?: number;
   queueStalledIntervalMs?: number;
