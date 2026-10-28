@@ -9,6 +9,7 @@ export function middleware(request: NextRequest) {
   return NextResponse.next();
 }
 export const config = {
+  runtime: 'nodejs',
   matcher: [
     '/cabinet/:path*',
     '/trips/:path*',
