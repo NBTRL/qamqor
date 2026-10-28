@@ -35,6 +35,7 @@ HTTP-процессы на Vercel не запускают фоновые вор�
   API сопоставляет их с настройками S3, endpoint `https://t3.storage.dev`, region `auto`.
   CORS бакета должен разрешать загрузки с production origin сайта.
 - `WEB_URL`, `PUBLIC_API_URL`: production origin сайта. Preview использует свой `VERCEL_URL`.
+- `PORT=4000`: порт HTTP-контейнера API в Production и Preview.
 - `JWT_SECRET`: отдельные секреты Production и Preview, не менее 32 символов.
 - Telegram только в Production: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`,
   `TELEGRAM_MODE=webhook`, `TELEGRAM_WEBHOOK_SECRET`.
