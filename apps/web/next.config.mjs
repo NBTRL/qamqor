@@ -9,6 +9,8 @@ const config = {
   // SEO-метаданные всегда находятся в head, включая проверку без JavaScript.
   htmlLimitedBots: /.*/,
   async rewrites() {
+    // Vercel Services owns public API routing. Bindings are available at runtime only.
+    if (process.env.VERCEL) return [];
     return [
       { source: '/api/v1/:path*', destination: `${upstream}/api/v1/:path*` },
       { source: '/api/docs', destination: `${upstream}/api/docs` },

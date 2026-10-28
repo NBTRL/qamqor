@@ -34,7 +34,17 @@ export class RedisService implements OnApplicationShutdown {
     this.prefix =
       env.NODE_ENV === 'test'
         ? `club-test-${createHash('sha256').update(new URL(env.DATABASE_URL).pathname).digest('hex').slice(0, 12)}`
-        : 'club';
+        : process.env.VERCEL_ENV === 'preview'
+          ? `club-preview-${createHash('sha256')
+              .update(
+                process.env.VERCEL_GIT_COMMIT_REF ??
+                  process.env.VERCEL_BRANCH_URL ??
+                  process.env.VERCEL_URL ??
+                  'preview',
+              )
+              .digest('hex')
+              .slice(0, 12)}`
+          : 'club';
     if (!runtime.offline) {
       this.instance = new Redis({ ...this.connection, maxRetriesPerRequest: 2 });
       // Никогда не печатаем объект ошибки подключения с URL/учетными данными.

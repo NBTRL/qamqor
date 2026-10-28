@@ -1,0 +1,32 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "regions": ["fra1"],
+  "services": {
+    "api": {
+      "root": "apps/api",
+      "framework": "nestjs",
+      "buildCommand": "pnpm --filter @club/shared build && pnpm run build && node ../../scripts/vercel-migrate.mjs"
+    },
+    "web": {
+      "root": "apps/web",
+      "framework": "nextjs",
+      "buildCommand": "pnpm --filter @club/shared build && pnpm run build",
+      "bindings": [
+        { "type": "service", "service": "api", "format": "url", "env": "API_INTERNAL_URL" }
+      ]
+    }
+  },
+  "daemons": {
+    "worker": {
+      "root": ".",
+      "entrypoint": "Dockerfile.worker",
+      "instances": { "fra1": 1 },
+      "resources": { "requests": { "memory": "1Gi" } },
+      "terminationGracePeriodSeconds": 50
+    }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": { "service": "api" } },
+    { "source": "/(.*)", "destination": { "service": "web" } }
+  ]
+}

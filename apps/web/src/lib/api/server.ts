@@ -5,7 +5,7 @@ import type { paths } from './schema';
 export async function serverApi() {
   const jar = await cookies();
   return createClient<paths>({
-    baseUrl: process.env.PUBLIC_API_URL ?? 'http://localhost:4000',
+    baseUrl: process.env.API_INTERNAL_URL ?? process.env.PUBLIC_API_URL ?? 'http://localhost:4000',
     headers: { cookie: jar.toString() },
     fetch: (request) =>
       fetch(

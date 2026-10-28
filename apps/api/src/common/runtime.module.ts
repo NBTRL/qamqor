@@ -5,6 +5,9 @@ export interface RuntimeOptions {
   offline: boolean;
   workers: boolean;
   telegram: boolean;
+  backgroundIntervalMs?: number;
+  queueDrainDelaySeconds?: number;
+  queueStalledIntervalMs?: number;
 }
 @Global()
 @Module({})

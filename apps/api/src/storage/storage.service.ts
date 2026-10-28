@@ -9,6 +9,7 @@ import {
   DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  PutBucketCorsCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
 import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
@@ -35,7 +36,7 @@ export class StorageService implements OnModuleInit, OnModuleDestroy, OnApplicat
   private readonly env = getEnvironment();
   private readonly client = new S3Client({
     endpoint: this.env.S3_ENDPOINT,
-    region: 'us-east-1',
+    region: this.env.S3_REGION,
     forcePathStyle: true,
     credentials: { accessKeyId: this.env.S3_ACCESS_KEY, secretAccessKey: this.env.S3_SECRET_KEY },
     maxAttempts: 3,
@@ -50,6 +51,24 @@ export class StorageService implements OnModuleInit, OnModuleDestroy, OnApplicat
   ) {}
   uri(key: string): string {
     return `s3://${this.env.S3_BUCKET}/${key}`;
+  }
+  async configureCors(): Promise<void> {
+    await this.client.send(
+      new PutBucketCorsCommand({
+        Bucket: this.env.S3_BUCKET,
+        CORSConfiguration: {
+          CORSRules: [
+            {
+              AllowedOrigins: [new URL(this.env.WEB_URL).origin],
+              AllowedMethods: ['GET', 'HEAD', 'POST', 'PUT'],
+              AllowedHeaders: ['*'],
+              ExposeHeaders: ['ETag'],
+              MaxAgeSeconds: 3600,
+            },
+          ],
+        },
+      }),
+    );
   }
   private key(uri: string): string {
     const prefix = `s3://${this.env.S3_BUCKET}/`;
@@ -290,7 +309,7 @@ export class StorageService implements OnModuleInit, OnModuleDestroy, OnApplicat
               this.cleaning = undefined;
             });
       };
-      this.timer = setInterval(tick, 30000);
+      this.timer = setInterval(tick, this.queues.runtime.backgroundIntervalMs ?? 30000);
       this.timer.unref();
       tick();
     }

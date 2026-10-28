@@ -105,7 +105,7 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
               this.dispatching = undefined;
             });
       };
-      this.timer = setInterval(tick, 3000);
+      this.timer = setInterval(tick, this.queues.runtime.backgroundIntervalMs ?? 3000);
       this.timer.unref();
       tick();
     }

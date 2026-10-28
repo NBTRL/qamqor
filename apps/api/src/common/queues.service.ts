@@ -36,6 +36,8 @@ export class QueuesService implements OnModuleDestroy {
     const worker = new Worker<T>(name, processor, {
       connection: this.redis.connection,
       prefix: this.redis.prefix,
+      drainDelay: this.runtime.queueDrainDelaySeconds ?? 5,
+      stalledInterval: this.runtime.queueStalledIntervalMs ?? 30000,
       ...options,
     });
     worker.on('error', () => this.logger.warn('WORKER_CONNECTION_ERROR'));

@@ -40,7 +40,7 @@ export class ReminderService implements OnModuleInit, OnModuleDestroy {
               this.running = undefined;
             });
       };
-      this.timer = setInterval(tick, 30000);
+      this.timer = setInterval(tick, this.queues.runtime.backgroundIntervalMs ?? 30000);
       this.timer.unref();
       tick();
     }

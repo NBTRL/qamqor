@@ -7,16 +7,26 @@ import { Logger } from 'nestjs-pino';
 
 async function bootstrap(): Promise<void> {
   const environment = getEnvironment();
-  const app = await NestFactory.create(AppModule.configure(), {
-    logger: false,
-    abortOnError: false,
-  });
+  const app = await NestFactory.create(
+    AppModule.configure(
+      process.env.VERCEL
+        ? { workers: false, telegram: process.env.TELEGRAM_MODE === 'webhook' }
+        : {},
+    ),
+    {
+      logger: false,
+      abortOnError: false,
+    },
+  );
   try {
     app.useLogger(app.get(Logger));
     configureApp(app);
     setupSwagger(app);
     app.enableShutdownHooks();
-    await app.listen(4000, environment.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1');
+    await app.listen(
+      Number(process.env.PORT ?? 4000),
+      environment.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1',
+    );
   } catch (error) {
     // Иначе Redis/BullMQ оставляют процесс живым после ошибки getMe/username/listen.
     await app.close().catch(() => undefined);

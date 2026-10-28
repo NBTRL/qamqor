@@ -1,4 +1,9 @@
-import { Injectable, type OnModuleInit, type OnApplicationShutdown } from '@nestjs/common';
+import {
+  Injectable,
+  ServiceUnavailableException,
+  type OnModuleInit,
+  type OnApplicationShutdown,
+} from '@nestjs/common';
 import nodemailer from 'nodemailer';
 import type { Queue } from 'bullmq';
 import { z } from 'zod';
@@ -29,6 +34,8 @@ export class MailService implements OnApplicationShutdown {
     socketTimeout: 15000,
   });
   async deliver(to: string, subject: string, text: string): Promise<void> {
+    if (!this.env.SMTP_HOST || !this.env.MAIL_FROM)
+      throw new ServiceUnavailableException('SMTP is not configured.');
     await this.transporter.sendMail({ from: this.env.MAIL_FROM, to, subject, text });
   }
   onApplicationShutdown(): void {
