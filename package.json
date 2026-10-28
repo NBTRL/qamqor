@@ -1,0 +1,57 @@
+{
+  "name": "club-volunteers",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": ">=22.12.0",
+    "pnpm": ">=11 <12"
+  },
+  "scripts": {
+    "postinstall": "node scripts/setup-env.mjs && node scripts/workspace.mjs prepare",
+    "prepare": "husky",
+    "dev": "node scripts/workspace.mjs dev",
+    "build": "node scripts/workspace.mjs build",
+    "test": "node scripts/workspace.mjs test",
+    "test:e2e": "node scripts/test-e2e.mjs",
+    "typecheck": "node scripts/workspace.mjs typecheck",
+    "lint": "eslint . && prettier --check .",
+    "format": "prettier --write .",
+    "gen:api": "node scripts/workspace.mjs gen:api",
+    "db:deploy": "node scripts/workspace.mjs db:deploy",
+    "db:migrate": "node scripts/workspace.mjs db:migrate",
+    "db:seed": "node scripts/workspace.mjs db:seed",
+    "telegram:setup": "node scripts/workspace.mjs telegram:setup",
+    "telegram:info": "node scripts/workspace.mjs telegram:info",
+    "start": "node scripts/workspace.mjs start",
+    "gen:client": "pnpm --filter @club/web gen:client",
+    "test:web": "pnpm --filter @club/web test",
+    "lighthouse": "node scripts/lighthouse.mjs",
+    "test:ui": "pnpm --filter @club/web test:ui"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.0",
+    "@next/eslint-plugin-next": "15.5.28",
+    "@types/node": "^22.19.0",
+    "dotenv": "^17.2.3",
+    "eslint": "^9.39.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "globals": "^16.5.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.6",
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.0",
+    "vitest": "4.1.12"
+  },
+  "lint-staged": {
+    "*.{js,mjs,cjs,ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yaml,yml,css}": [
+      "prettier --write"
+    ]
+  }
+}

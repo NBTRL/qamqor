@@ -1,0 +1,643 @@
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Region {
+  id        String   @id @default(uuid()) @db.Uuid
+  slug      String   @unique @db.VarChar(100)
+  name      String   @db.VarChar(160)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  places    Place[]
+
+  @@map("regions")
+}
+
+enum UserRole {
+  CANDIDATE
+  VOLUNTEER
+  ADMIN
+}
+
+enum PlaceType {
+  ORPHANAGE
+  BOARDING_SCHOOL
+  ADULT_BOARDING
+  YARD_PROGRAM
+}
+
+enum ApplicationStatus {
+  NEW
+  QUESTIONNAIRE_DONE
+  INTERVIEW
+  ACCEPTED
+  REJECTED
+}
+
+enum TripStatus {
+  DRAFT
+  OPEN
+  CLOSED
+  DONE
+  REPORTED
+  CANCELLED
+}
+
+enum RegistrationStatus {
+  PENDING
+  CONFIRMED
+  WAITLIST
+  REJECTED
+  CANCELLED
+  ATTENDED
+  NO_SHOW
+}
+
+enum EventType {
+  CHARITY_ACTION
+  CLUB_EVENT
+  MASTER_CLASS
+  SEMINAR
+  LEISURE
+  TRIP
+}
+
+enum NewsStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum ContactRequestStatus {
+  NEW
+  IN_PROGRESS
+  DONE
+}
+
+enum NotificationChannel {
+  TELEGRAM
+  EMAIL
+  IN_APP
+}
+
+enum NotificationStatus {
+  QUEUED
+  SENT
+  FAILED
+}
+
+enum LoginTokenStatus {
+  PENDING
+  CONTACT_RECEIVED
+  CONFIRMED
+  USED
+  EXPIRED
+  DECLINED
+}
+
+enum MediaType {
+  PHOTO
+  VIDEO
+}
+
+model User {
+  id                   String                 @id @default(uuid()) @db.Uuid
+  telegramId           BigInt?                @unique
+  telegramUsername     String?                @db.VarChar(100)
+  chatId               BigInt?
+  phone                String?                @db.VarChar(32)
+  fullName             String                 @db.VarChar(160)
+  nickname             String?                @db.VarChar(100)
+  avatarUrl            String?
+  city                 String?                @db.VarChar(160)
+  role                 UserRole               @default(CANDIDATE)
+  email                String?                @unique @db.VarChar(254)
+  emailVerifiedAt      DateTime?              @db.Timestamptz(3)
+  birthDate            DateTime?              @db.Date
+  consentAt            DateTime?              @db.Timestamptz(3)
+  consentVersion       String?                @db.VarChar(100)
+  botBlockedAt         DateTime?              @db.Timestamptz(3)
+  isBlocked            Boolean                @default(false)
+  lastLoginAt          DateTime?              @db.Timestamptz(3)
+  anonymizedAt         DateTime?              @db.Timestamptz(3)
+  createdAt            DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime               @updatedAt @db.Timestamptz(3)
+  curators             PlaceCurator[]
+  loginTokens          LoginToken[]
+  refreshTokens        RefreshToken[]
+  emailTokens          EmailToken[]
+  emailLoginCodes      EmailLoginCode[]
+  adminLoginCodes      AdminLoginCode[]
+  application          CandidateApplication?  @relation("Applicant")
+  reviewedApplications CandidateApplication[] @relation("ApplicationReviewer")
+  applicationHistory   ApplicationHistory[]   @relation("HistoryActor")
+  openDayRegistrations OpenDayRegistration[]
+  createdTrips         Trip[]                 @relation("TripCreator")
+  tripRegistrations    TripRegistration[]
+  createdEvents        Event[]                @relation("EventCreator")
+  eventRegistrations   EventRegistration[]
+  reports              Report[]
+  newsPosts            NewsPost[]
+  donations            Donation[]
+  notifications        Notification[]
+  notificationSettings NotificationSetting[]
+  auditLogs            AuditLog[]
+  uploads              UploadAsset[]
+
+  @@index([phone])
+  @@map("users")
+}
+
+model LoginToken {
+  id               String           @id @default(uuid()) @db.Uuid
+  tokenHash        String           @unique @db.Char(64)
+  pollSecretHash   String           @db.Char(64)
+  status           LoginTokenStatus @default(PENDING)
+  expiresAt        DateTime         @db.Timestamptz(3)
+  telegramId       BigInt?
+  userId           String?          @db.Uuid
+  user             User?            @relation(fields: [userId], references: [id])
+  attempts         Int              @default(0)
+  createdIp        String           @db.Inet
+  createdUserAgent String           @db.VarChar(512)
+  createdAt        DateTime         @default(now()) @db.Timestamptz(3)
+
+  @@index([status, expiresAt])
+  @@map("login_tokens")
+}
+
+model RefreshToken {
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String    @db.Uuid
+  user          User      @relation(fields: [userId], references: [id])
+  familyId      String    @db.Uuid
+  tokenHash     String    @unique @db.Char(64)
+  deviceHash    String    @db.Char(64)
+  adminVerified Boolean   @default(false)
+  expiresAt     DateTime  @db.Timestamptz(3)
+  usedAt        DateTime? @db.Timestamptz(3)
+  revokedAt     DateTime? @db.Timestamptz(3)
+  createdAt     DateTime  @default(now()) @db.Timestamptz(3)
+
+  @@index([userId, familyId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+model EmailToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  user      User      @relation(fields: [userId], references: [id])
+  email     String    @db.VarChar(254)
+  tokenHash String    @unique @db.Char(64)
+  expiresAt DateTime  @db.Timestamptz(3)
+  usedAt    DateTime? @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+
+  @@map("email_tokens")
+}
+
+model EmailLoginCode {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  user      User      @relation(fields: [userId], references: [id])
+  codeHash  String    @db.Char(64)
+  expiresAt DateTime  @db.Timestamptz(3)
+  attempts  Int       @default(0)
+  usedAt    DateTime? @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+
+  @@index([userId, createdAt])
+  @@map("email_login_codes")
+}
+
+model AdminLoginCode {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @db.Uuid
+  user       User      @relation(fields: [userId], references: [id])
+  codeHash   String    @db.Char(64)
+  deviceHash String    @db.Char(64)
+  expiresAt  DateTime  @db.Timestamptz(3)
+  attempts   Int       @default(0)
+  usedAt     DateTime? @db.Timestamptz(3)
+  createdAt  DateTime  @default(now()) @db.Timestamptz(3)
+
+  @@index([userId, createdAt])
+  @@map("admin_login_codes")
+}
+
+model Place {
+  id                 String         @id @default(uuid()) @db.Uuid
+  name               String         @db.VarChar(200)
+  slug               String         @unique @db.VarChar(150)
+  type               PlaceType
+  regionId           String         @db.Uuid
+  region             Region         @relation(fields: [regionId], references: [id])
+  city               String         @db.VarChar(160)
+  district           String?        @db.VarChar(200)
+  address            String?        @db.VarChar(500)
+  description        String
+  privateNotes       String         @default("")
+  beneficiariesCount Int            @default(0)
+  coverImageUrl      String?
+  isActive           Boolean        @default(true)
+  createdAt          DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime       @updatedAt @db.Timestamptz(3)
+  curators           PlaceCurator[]
+  needs              NeedItem[]
+  trips              Trip[]
+
+  @@index([regionId, type])
+  @@map("places")
+}
+
+model PlaceCurator {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id])
+  placeId   String   @db.Uuid
+  place     Place    @relation(fields: [placeId], references: [id])
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@unique([userId, placeId])
+  @@map("place_curators")
+}
+
+model NeedItem {
+  id          String  @id @default(uuid()) @db.Uuid
+  placeId     String  @db.Uuid
+  place       Place   @relation(fields: [placeId], references: [id])
+  title       String  @db.VarChar(200)
+  description String  @default("")
+  isActive    Boolean @default(true)
+
+  @@index([placeId, isActive])
+  @@map("need_items")
+}
+
+model CandidateApplication {
+  id            String               @id @default(uuid()) @db.Uuid
+  userId        String               @unique @db.Uuid
+  user          User                 @relation("Applicant", fields: [userId], references: [id])
+  status        ApplicationStatus    @default(NEW)
+  questionnaire Json?
+  adminComment  String?
+  reviewedById  String?              @db.Uuid
+  reviewedBy    User?                @relation("ApplicationReviewer", fields: [reviewedById], references: [id])
+  createdAt     DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime             @updatedAt @db.Timestamptz(3)
+  history       ApplicationHistory[]
+
+  @@index([status, createdAt])
+  @@map("candidate_applications")
+}
+
+model ApplicationHistory {
+  id            String               @id @default(uuid()) @db.Uuid
+  applicationId String               @db.Uuid
+  application   CandidateApplication @relation(fields: [applicationId], references: [id])
+  actorId       String?              @db.Uuid
+  actor         User?                @relation("HistoryActor", fields: [actorId], references: [id])
+  fromStatus    ApplicationStatus?
+  toStatus      ApplicationStatus
+  comment       String?
+  createdAt     DateTime             @default(now()) @db.Timestamptz(3)
+
+  @@index([applicationId, createdAt])
+  @@map("application_history")
+}
+
+model OpenDaySession {
+  id              String                @id @default(uuid()) @db.Uuid
+  startsAt        DateTime              @db.Timestamptz(3)
+  location        String                @db.VarChar(500)
+  capacity        Int
+  registrationUrl String?
+  notes           String                @default("")
+  createdAt       DateTime              @default(now()) @db.Timestamptz(3)
+  registrations   OpenDayRegistration[]
+
+  @@index([startsAt])
+  @@map("open_day_sessions")
+}
+
+model OpenDayRegistration {
+  id          String         @id @default(uuid()) @db.Uuid
+  sessionId   String         @db.Uuid
+  session     OpenDaySession @relation(fields: [sessionId], references: [id])
+  userId      String         @db.Uuid
+  user        User           @relation(fields: [userId], references: [id])
+  attended    Boolean        @default(false)
+  cancelledAt DateTime?      @db.Timestamptz(3)
+  createdAt   DateTime       @default(now()) @db.Timestamptz(3)
+
+  @@unique([sessionId, userId])
+  @@map("open_day_registrations")
+}
+
+model Trip {
+  id            String             @id @default(uuid()) @db.Uuid
+  placeId       String             @db.Uuid
+  place         Place              @relation(fields: [placeId], references: [id])
+  createdById   String             @db.Uuid
+  createdBy     User               @relation("TripCreator", fields: [createdById], references: [id])
+  title         String             @db.VarChar(200)
+  description   String
+  startsAt      DateTime           @db.Timestamptz(3)
+  endsAt        DateTime           @db.Timestamptz(3)
+  meetingPoint  String             @db.VarChar(500)
+  capacity      Int
+  status        TripStatus         @default(DRAFT)
+  cancelReason  String?
+  createdAt     DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime           @updatedAt @db.Timestamptz(3)
+  registrations TripRegistration[]
+  report        Report?
+
+  @@index([status, startsAt])
+  @@index([placeId, startsAt])
+  @@map("trips")
+}
+
+model TripRegistration {
+  id        String             @id @default(uuid()) @db.Uuid
+  tripId    String             @db.Uuid
+  trip      Trip               @relation(fields: [tripId], references: [id])
+  userId    String             @db.Uuid
+  user      User               @relation(fields: [userId], references: [id])
+  status    RegistrationStatus @default(PENDING)
+  comment   String?
+  createdAt DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime           @updatedAt @db.Timestamptz(3)
+
+  @@unique([tripId, userId])
+  @@index([tripId, status])
+  @@map("trip_registrations")
+}
+
+model Event {
+  id             String              @id @default(uuid()) @db.Uuid
+  type           EventType
+  title          String              @db.VarChar(200)
+  description    String
+  startsAt       DateTime            @db.Timestamptz(3)
+  endsAt         DateTime            @db.Timestamptz(3)
+  location       String              @db.VarChar(500)
+  capacity       Int?
+  isPublic       Boolean             @default(true)
+  volunteersOnly Boolean             @default(false)
+  createdById    String              @db.Uuid
+  createdBy      User                @relation("EventCreator", fields: [createdById], references: [id])
+  createdAt      DateTime            @default(now()) @db.Timestamptz(3)
+  registrations  EventRegistration[]
+
+  @@index([startsAt, type])
+  @@map("events")
+}
+
+model EventRegistration {
+  id        String             @id @default(uuid()) @db.Uuid
+  eventId   String             @db.Uuid
+  event     Event              @relation(fields: [eventId], references: [id])
+  userId    String             @db.Uuid
+  user      User               @relation(fields: [userId], references: [id])
+  status    RegistrationStatus @default(CONFIRMED)
+  createdAt DateTime           @default(now()) @db.Timestamptz(3)
+
+  @@unique([eventId, userId])
+  @@map("event_registrations")
+}
+
+model Report {
+  id          String        @id @default(uuid()) @db.Uuid
+  tripId      String        @unique @db.Uuid
+  trip        Trip          @relation(fields: [tripId], references: [id])
+  authorId    String        @db.Uuid
+  author      User          @relation(fields: [authorId], references: [id])
+  text        String
+  hoursSpent  Decimal       @db.Decimal(8, 2)
+  publishedAt DateTime?     @db.Timestamptz(3)
+  createdAt   DateTime      @default(now()) @db.Timestamptz(3)
+  photos      ReportPhoto[]
+
+  @@map("reports")
+}
+
+model ReportPhoto {
+  id       String  @id @default(uuid()) @db.Uuid
+  reportId String  @db.Uuid
+  report   Report  @relation(fields: [reportId], references: [id])
+  url      String
+  isPublic Boolean @default(false)
+
+  @@map("report_photos")
+}
+
+model ClubReport {
+  id          String    @id @default(uuid()) @db.Uuid
+  title       String    @db.VarChar(200)
+  year        Int
+  fileUrl     String
+  publishedAt DateTime? @db.Timestamptz(3)
+
+  @@map("club_reports")
+}
+
+model NewsPost {
+  id          String     @id @default(uuid()) @db.Uuid
+  slug        String     @unique @db.VarChar(150)
+  title       String     @db.VarChar(200)
+  excerpt     String     @db.VarChar(1000)
+  bodyHtml    String
+  coverUrl    String?
+  status      NewsStatus @default(DRAFT)
+  publishedAt DateTime?  @db.Timestamptz(3)
+  authorId    String     @db.Uuid
+  author      User       @relation(fields: [authorId], references: [id])
+  createdAt   DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime   @updatedAt @db.Timestamptz(3)
+
+  @@index([status, publishedAt])
+  @@map("news_posts")
+}
+
+model Page {
+  id       String @id @default(uuid()) @db.Uuid
+  slug     String @unique @db.VarChar(150)
+  title    String @db.VarChar(200)
+  bodyHtml String
+
+  @@map("pages")
+}
+
+model MediaAlbum {
+  id          String      @id @default(uuid()) @db.Uuid
+  slug        String      @unique @db.VarChar(150)
+  title       String      @db.VarChar(200)
+  description String      @default("")
+  coverUrl    String?
+  publishedAt DateTime?   @db.Timestamptz(3)
+  items       MediaItem[]
+
+  @@map("media_albums")
+}
+
+model MediaItem {
+  id        String     @id @default(uuid()) @db.Uuid
+  albumId   String     @db.Uuid
+  album     MediaAlbum @relation(fields: [albumId], references: [id])
+  type      MediaType
+  url       String
+  caption   String     @default("")
+  isPublic  Boolean    @default(true)
+  sortOrder Int        @default(0)
+
+  @@index([albumId, sortOrder])
+  @@map("media_items")
+}
+
+model Interview {
+  id          String    @id @default(uuid()) @db.Uuid
+  slug        String    @unique @db.VarChar(150)
+  title       String    @db.VarChar(200)
+  bodyHtml    String
+  coverUrl    String?
+  publishedAt DateTime? @db.Timestamptz(3)
+
+  @@map("interviews")
+}
+
+model Project {
+  id       String  @id @default(uuid()) @db.Uuid
+  slug     String  @unique @db.VarChar(150)
+  title    String  @db.VarChar(200)
+  bodyHtml String
+  coverUrl String?
+  isActive Boolean @default(true)
+
+  @@map("projects")
+}
+
+model Partner {
+  id         String  @id @default(uuid()) @db.Uuid
+  slug       String  @unique @db.VarChar(150)
+  name       String  @db.VarChar(200)
+  logoUrl    String?
+  websiteUrl String?
+  isActive   Boolean @default(true)
+  sortOrder  Int     @default(0)
+
+  @@map("partners")
+}
+
+model PressMention {
+  id          String   @id @default(uuid()) @db.Uuid
+  title       String   @db.VarChar(200)
+  outlet      String   @db.VarChar(200)
+  url         String
+  publishedAt DateTime @db.Timestamptz(3)
+
+  @@map("press_mentions")
+}
+
+model Donation {
+  id          String   @id @default(uuid()) @db.Uuid
+  amount      Decimal  @db.Decimal(14, 2)
+  currency    String   @default("RUB") @db.Char(3)
+  donorName   String?  @db.VarChar(200)
+  note        String?
+  receivedAt  DateTime @db.Timestamptz(3)
+  createdById String   @db.Uuid
+  createdBy   User     @relation(fields: [createdById], references: [id])
+
+  @@map("donations")
+}
+
+model ContactRequest {
+  id             String               @id @default(uuid()) @db.Uuid
+  name           String               @db.VarChar(160)
+  contact        String               @db.VarChar(254)
+  message        String
+  status         ContactRequestStatus @default(NEW)
+  adminNote      String?
+  consentVersion String?              @db.VarChar(100)
+  createdAt      DateTime             @default(now()) @db.Timestamptz(3)
+
+  @@index([status, createdAt])
+  @@map("contact_requests")
+}
+
+model Notification {
+  id        String              @id @default(uuid()) @db.Uuid
+  userId    String              @db.Uuid
+  user      User                @relation(fields: [userId], references: [id])
+  type      String              @db.VarChar(100)
+  payload   Json
+  channel   NotificationChannel
+  status    NotificationStatus  @default(QUEUED)
+  dedupeKey String?             @unique @db.VarChar(250)
+  attempts  Int                 @default(0)
+  lastError String?             @db.VarChar(100)
+  sentAt    DateTime?           @db.Timestamptz(3)
+  readAt    DateTime?           @db.Timestamptz(3)
+  createdAt DateTime            @default(now()) @db.Timestamptz(3)
+
+  @@index([status, channel, createdAt])
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+model NotificationSetting {
+  id       String  @id @default(uuid()) @db.Uuid
+  userId   String  @db.Uuid
+  user     User    @relation(fields: [userId], references: [id])
+  type     String  @db.VarChar(100)
+  telegram Boolean @default(true)
+  email    Boolean @default(true)
+
+  @@unique([userId, type])
+  @@map("notification_settings")
+}
+
+model StatOverride {
+  key   String @id @db.VarChar(100)
+  value Int
+
+  @@map("stat_overrides")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  actorId   String?  @db.Uuid
+  actor     User?    @relation(fields: [actorId], references: [id])
+  action    String   @db.VarChar(100)
+  entity    String   @db.VarChar(100)
+  entityId  String   @db.VarChar(100)
+  diff      Json
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([entity, entityId, createdAt])
+  @@map("audit_logs")
+}
+
+model UploadAsset {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @db.Uuid
+  user        User      @relation(fields: [userId], references: [id])
+  key         String    @unique
+  contentType String    @db.VarChar(100)
+  sizeBytes   Int
+  purpose     String    @db.VarChar(40)
+  tripId      String?   @db.Uuid
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+  deletedAt   DateTime? @db.Timestamptz(3)
+
+  @@map("upload_assets")
+}

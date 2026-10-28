@@ -1,0 +1,400 @@
+{
+  "AlbumWriteDto": {
+    "type": "object",
+    "properties": {
+      "slug": { "type": "string" },
+      "title": { "type": "string" },
+      "description": { "type": "string" },
+      "coverUrl": { "type": "string", "nullable": true },
+      "publishedAt": { "type": "string", "nullable": true, "format": "date-time" }
+    },
+    "required": ["slug", "title"]
+  },
+  "ClubReportWriteDto": {
+    "type": "object",
+    "properties": {
+      "title": { "type": "string" },
+      "year": { "type": "number" },
+      "fileUrl": { "type": "string" },
+      "publishedAt": { "type": "string", "nullable": true, "format": "date-time" }
+    },
+    "required": ["title", "year", "fileUrl"]
+  },
+  "ContactPatchDto": {
+    "type": "object",
+    "properties": {
+      "status": { "type": "string", "enum": ["NEW", "IN_PROGRESS", "DONE"] },
+      "adminNote": { "type": "string", "nullable": true }
+    }
+  },
+  "CuratorAssignDto": {
+    "type": "object",
+    "properties": {
+      "userId": { "type": "string", "format": "uuid" },
+      "placeId": { "type": "string", "format": "uuid" }
+    },
+    "required": ["userId", "placeId"]
+  },
+  "DonationWriteDto": {
+    "type": "object",
+    "properties": {
+      "amount": { "type": "string", "example": "1500.00" },
+      "currency": { "type": "string", "default": "RUB" },
+      "donorName": { "type": "string", "nullable": true },
+      "note": { "type": "string", "nullable": true },
+      "receivedAt": { "type": "string", "format": "date-time" }
+    },
+    "required": ["amount", "receivedAt"]
+  },
+  "EventPatchDto": {
+    "type": "object",
+    "properties": {
+      "type": {
+        "type": "string",
+        "enum": ["CHARITY_ACTION", "CLUB_EVENT", "MASTER_CLASS", "SEMINAR", "LEISURE", "TRIP"]
+      },
+      "title": { "type": "string" },
+      "description": { "type": "string" },
+      "startsAt": { "type": "string", "format": "date-time" },
+      "endsAt": { "type": "string", "format": "date-time" },
+      "location": { "type": "string" },
+      "capacity": { "type": "number", "nullable": true },
+      "isPublic": { "type": "boolean", "default": true },
+      "volunteersOnly": { "type": "boolean", "default": false }
+    }
+  },
+  "EventWriteDto": {
+    "type": "object",
+    "properties": {
+      "type": {
+        "type": "string",
+        "enum": ["CHARITY_ACTION", "CLUB_EVENT", "MASTER_CLASS", "SEMINAR", "LEISURE", "TRIP"]
+      },
+      "title": { "type": "string" },
+      "description": { "type": "string" },
+      "startsAt": { "type": "string", "format": "date-time" },
+      "endsAt": { "type": "string", "format": "date-time" },
+      "location": { "type": "string" },
+      "capacity": { "type": "number", "nullable": true },
+      "isPublic": { "type": "boolean", "default": true },
+      "volunteersOnly": { "type": "boolean", "default": false }
+    },
+    "required": ["type", "title", "description", "startsAt", "endsAt", "location"]
+  },
+  "InterviewWriteDto": {
+    "type": "object",
+    "properties": {
+      "slug": { "type": "string" },
+      "title": { "type": "string" },
+      "bodyHtml": { "type": "string" },
+      "coverUrl": { "type": "string", "nullable": true },
+      "publishedAt": { "type": "string", "nullable": true, "format": "date-time" }
+    },
+    "required": ["slug", "title", "bodyHtml"]
+  },
+  "MediaItemWriteDto": {
+    "type": "object",
+    "properties": {
+      "albumId": { "type": "string", "format": "uuid" },
+      "type": { "allOf": [{ "$ref": "#/components/schemas/MediaType" }] },
+      "url": { "type": "string" },
+      "caption": { "type": "string" },
+      "isPublic": { "type": "boolean" },
+      "sortOrder": { "type": "number" }
+    },
+    "required": ["albumId", "type", "url"]
+  },
+  "MediaType": { "type": "string", "enum": ["PHOTO", "VIDEO"] },
+  "NeedWriteDto": {
+    "type": "object",
+    "properties": {
+      "id": { "type": "string", "format": "uuid" },
+      "title": { "type": "string" },
+      "description": { "type": "string" },
+      "isActive": { "type": "boolean", "default": true }
+    },
+    "required": ["title", "description"]
+  },
+  "NeedsWriteDto": {
+    "type": "object",
+    "properties": {
+      "items": { "type": "array", "items": { "$ref": "#/components/schemas/NeedWriteDto" } }
+    },
+    "required": ["items"]
+  },
+  "NewsWriteDto": {
+    "type": "object",
+    "properties": {
+      "slug": { "type": "string" },
+      "title": { "type": "string" },
+      "bodyHtml": { "type": "string" },
+      "excerpt": { "type": "string" },
+      "coverUrl": { "type": "string", "nullable": true },
+      "status": { "type": "string", "enum": ["DRAFT", "PUBLISHED", "ARCHIVED"] },
+      "publishedAt": { "type": "string", "nullable": true, "format": "date-time" }
+    },
+    "required": ["slug", "title", "bodyHtml", "excerpt"]
+  },
+  "NotificationType": {
+    "type": "string",
+    "enum": [
+      "ApplicationStatusChanged",
+      "RegistrationConfirmed",
+      "RegistrationRejected",
+      "RegistrationWaitlisted",
+      "RegistrationPromotedFromWaitlist",
+      "RegistrationCancelled",
+      "TripCancelled",
+      "TripRescheduled",
+      "TripReminder24h",
+      "TripReminder3h",
+      "NewRegistrationForCurator",
+      "ReportRequestedFromCurator",
+      "OpenDayReminder",
+      "EventRegistered",
+      "EventCancelled",
+      "OpenDayRegistered"
+    ]
+  },
+  "OpenDayPatchDto": {
+    "type": "object",
+    "properties": {
+      "startsAt": { "type": "string", "format": "date-time" },
+      "location": { "type": "string" },
+      "capacity": { "type": "number" },
+      "registrationUrl": { "type": "string", "nullable": true },
+      "notes": { "type": "string" }
+    }
+  },
+  "OpenDayWriteDto": {
+    "type": "object",
+    "properties": {
+      "startsAt": { "type": "string", "format": "date-time" },
+      "location": { "type": "string" },
+      "capacity": { "type": "number" },
+      "registrationUrl": { "type": "string", "nullable": true },
+      "notes": { "type": "string" }
+    },
+    "required": ["startsAt", "location", "capacity"]
+  },
+  "OverridesDto": {
+    "type": "object",
+    "properties": {
+      "items": { "type": "array", "items": { "$ref": "#/components/schemas/StatOverrideDto" } }
+    },
+    "required": ["items"]
+  },
+  "PageWriteDto": {
+    "type": "object",
+    "properties": {
+      "slug": { "type": "string" },
+      "title": { "type": "string" },
+      "bodyHtml": { "type": "string" }
+    },
+    "required": ["slug", "title", "bodyHtml"]
+  },
+  "PartnerWriteDto": {
+    "type": "object",
+    "properties": {
+      "slug": { "type": "string" },
+      "name": { "type": "string" },
+      "logoUrl": { "type": "string", "nullable": true },
+      "websiteUrl": { "type": "string", "nullable": true },
+      "isActive": { "type": "boolean" },
+      "sortOrder": { "type": "number" }
+    },
+    "required": ["slug", "name"]
+  },
+  "PhotoReferenceDto": {
+    "type": "object",
+    "properties": {
+      "uploadId": { "type": "string", "format": "uuid" },
+      "isPublic": { "type": "boolean", "default": false }
+    },
+    "required": ["uploadId"]
+  },
+  "PlacePatchDto": {
+    "type": "object",
+    "properties": {
+      "name": { "type": "string" },
+      "slug": { "type": "string" },
+      "type": {
+        "type": "string",
+        "enum": ["ORPHANAGE", "BOARDING_SCHOOL", "ADULT_BOARDING", "YARD_PROGRAM"]
+      },
+      "regionId": { "type": "string", "format": "uuid" },
+      "city": { "type": "string" },
+      "district": { "type": "string", "nullable": true },
+      "address": { "type": "string", "nullable": true },
+      "description": { "type": "string" },
+      "privateNotes": { "type": "string" },
+      "beneficiariesCount": { "type": "number", "default": 0 },
+      "coverImageUrl": { "type": "string", "nullable": true },
+      "isActive": { "type": "boolean", "default": true }
+    }
+  },
+  "PlaceWriteDto": {
+    "type": "object",
+    "properties": {
+      "name": { "type": "string" },
+      "slug": { "type": "string" },
+      "type": {
+        "type": "string",
+        "enum": ["ORPHANAGE", "BOARDING_SCHOOL", "ADULT_BOARDING", "YARD_PROGRAM"]
+      },
+      "regionId": { "type": "string", "format": "uuid" },
+      "city": { "type": "string" },
+      "district": { "type": "string", "nullable": true },
+      "address": { "type": "string", "nullable": true },
+      "description": { "type": "string" },
+      "privateNotes": { "type": "string" },
+      "beneficiariesCount": { "type": "number", "default": 0 },
+      "coverImageUrl": { "type": "string", "nullable": true },
+      "isActive": { "type": "boolean", "default": true }
+    },
+    "required": ["name", "slug", "type", "regionId", "city", "description"]
+  },
+  "PressWriteDto": {
+    "type": "object",
+    "properties": {
+      "title": { "type": "string" },
+      "outlet": { "type": "string" },
+      "url": { "type": "string" },
+      "publishedAt": { "type": "string", "format": "date-time" }
+    },
+    "required": ["title", "outlet", "url", "publishedAt"]
+  },
+  "ProjectWriteDto": {
+    "type": "object",
+    "properties": {
+      "slug": { "type": "string" },
+      "title": { "type": "string" },
+      "bodyHtml": { "type": "string" },
+      "coverUrl": { "type": "string", "nullable": true },
+      "isActive": { "type": "boolean" }
+    },
+    "required": ["slug", "title", "bodyHtml"]
+  },
+  "RegionDto": {
+    "type": "object",
+    "properties": { "name": { "type": "string" }, "slug": { "type": "string" } },
+    "required": ["name", "slug"]
+  },
+  "RegionPatchDto": {
+    "type": "object",
+    "properties": { "name": { "type": "string" }, "slug": { "type": "string" } }
+  },
+  "ReportWriteDto": {
+    "type": "object",
+    "properties": {
+      "text": { "type": "string" },
+      "hoursSpent": { "type": "number" },
+      "photos": { "type": "array", "items": { "$ref": "#/components/schemas/PhotoReferenceDto" } }
+    },
+    "required": ["text", "hoursSpent"]
+  },
+  "SettingDto": {
+    "type": "object",
+    "properties": {
+      "type": { "allOf": [{ "$ref": "#/components/schemas/NotificationType" }] },
+      "telegram": { "type": "boolean" },
+      "email": { "type": "boolean" }
+    },
+    "required": ["type", "telegram", "email"]
+  },
+  "SettingsWriteDto": {
+    "type": "object",
+    "properties": {
+      "items": { "type": "array", "items": { "$ref": "#/components/schemas/SettingDto" } }
+    },
+    "required": ["items"]
+  },
+  "StatOverrideDto": {
+    "type": "object",
+    "properties": {
+      "key": {
+        "type": "string",
+        "enum": [
+          "places",
+          "curators",
+          "events12Months",
+          "masterClasses12Months",
+          "uniqueParticipants12Months",
+          "beneficiaries",
+          "trips"
+        ]
+      },
+      "value": {
+        "type": "number",
+        "nullable": true,
+        "description": "null возвращает счетчик к расчету из БД."
+      }
+    },
+    "required": ["key", "value"]
+  },
+  "TripCreateDto": {
+    "type": "object",
+    "properties": {
+      "placeId": { "type": "string", "format": "uuid" },
+      "title": { "type": "string" },
+      "description": { "type": "string" },
+      "startsAt": { "type": "string", "format": "date-time" },
+      "endsAt": { "type": "string", "format": "date-time" },
+      "meetingPoint": { "type": "string" },
+      "capacity": { "type": "number", "minimum": 1, "maximum": 1000 }
+    },
+    "required": [
+      "placeId",
+      "title",
+      "description",
+      "startsAt",
+      "endsAt",
+      "meetingPoint",
+      "capacity"
+    ]
+  },
+  "TripPatchDto": {
+    "type": "object",
+    "properties": {
+      "placeId": { "type": "string", "format": "uuid" },
+      "title": { "type": "string" },
+      "description": { "type": "string" },
+      "startsAt": { "type": "string", "format": "date-time" },
+      "endsAt": { "type": "string", "format": "date-time" },
+      "meetingPoint": { "type": "string" },
+      "capacity": { "type": "number", "minimum": 1, "maximum": 1000 }
+    }
+  },
+  "TripStatusDto": {
+    "type": "object",
+    "properties": {
+      "status": {
+        "type": "string",
+        "enum": ["DRAFT", "OPEN", "CLOSED", "DONE", "REPORTED", "CANCELLED"]
+      },
+      "cancelReason": { "type": "string" }
+    },
+    "required": ["status"]
+  },
+  "UserCreateDto": {
+    "type": "object",
+    "properties": {
+      "telegramId": { "type": "string" },
+      "fullName": { "type": "string" },
+      "role": { "type": "string", "enum": ["CANDIDATE", "VOLUNTEER", "ADMIN"] },
+      "email": { "type": "string", "nullable": true }
+    },
+    "required": ["telegramId", "fullName"]
+  },
+  "UserPatchDto": {
+    "type": "object",
+    "properties": {
+      "fullName": { "type": "string" },
+      "nickname": { "type": "string", "nullable": true },
+      "city": { "type": "string", "nullable": true },
+      "role": { "type": "string", "enum": ["CANDIDATE", "VOLUNTEER", "ADMIN"] },
+      "isBlocked": { "type": "boolean" },
+      "email": { "type": "string", "nullable": true }
+    }
+  }
+}
