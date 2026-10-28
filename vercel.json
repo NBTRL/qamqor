@@ -5,8 +5,7 @@
     "api": {
       "root": ".",
       "runtime": "container",
-      "entrypoint": "Dockerfile.worker",
-      "command": ["node", "dist/scripts/start-vercel.js"]
+      "entrypoint": "Dockerfile.api"
     },
     "web": {
       "root": "apps/web",

@@ -10,7 +10,7 @@
 
 - `web`: Next.js из `apps/web`, публичные страницы сайта.
 - `api`: NestJS из `apps/api`, публичные пути `/api/*`.
-  Сборка генерирует Prisma Client. API запускается в контейнере из `Dockerfile.worker`
+  Сборка генерирует Prisma Client. API запускается в контейнере из `Dockerfile.api`
   командой `node dist/scripts/start-vercel.js`; фоновые задания в HTTP-контейнере выключены.
 - Привязка `API_INTERNAL_URL` позволяет Server Components обращаться к API
   своего деплоя. Значение создаёт Vercel; вручную его не задают.
