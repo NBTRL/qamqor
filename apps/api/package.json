@@ -10,7 +10,7 @@
   ],
   "scripts": {
     "dev": "node ../../scripts/api-dev.mjs",
-    "build": "tsc --project tsconfig.json && node ../../scripts/api-runtime-package.mjs",
+    "build": "pnpm prisma:generate && tsc --project tsconfig.json && node ../../scripts/api-runtime-package.mjs",
     "start": "node dist/main.js",
     "typecheck": "tsc --noEmit",
     "prisma:generate": "prisma generate",
