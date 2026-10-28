@@ -10,7 +10,7 @@
 
 - `web`: Next.js из `apps/web`, публичные страницы сайта.
 - `api`: NestJS из `apps/api`, публичные пути `/api/*`.
-  Сборка генерирует Prisma Client и формирует автономный каталог `.vercel-api`
+  Сборка генерирует Prisma Client и формирует автономный каталог `server-output`
   с production-зависимостями и явным ESM package scope.
 - Привязка `API_INTERNAL_URL` позволяет Server Components обращаться к API
   своего деплоя. Значение создаёт Vercel; вручную его не задают.

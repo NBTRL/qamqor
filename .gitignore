@@ -1,5 +1,5 @@
 node_modules/
-**/.vercel-api/
+**/server-output/
 .pnpm-store/
 dist/
 .next/

@@ -6,7 +6,7 @@ await writeFile(new URL('../apps/api/dist/package.json', import.meta.url), '{"ty
 if (process.argv.includes('--standalone')) {
   await cp(
     new URL('../apps/api/dist/', import.meta.url),
-    new URL('../apps/api/.vercel-api/', import.meta.url),
+    new URL('../apps/api/server-output/', import.meta.url),
     { recursive: true },
   );
 }

@@ -5,8 +5,8 @@
     "api": {
       "root": "apps/api",
       "framework": "nestjs",
-      "outputDirectory": ".vercel-api",
-      "buildCommand": "pnpm --filter @club/shared build && pnpm run build && node ../../scripts/vercel-migrate.mjs && pnpm --filter @club/api deploy --prod --legacy --ignore-scripts .vercel-api && node ../../scripts/api-runtime-package.mjs --standalone"
+      "outputDirectory": "server-output",
+      "buildCommand": "pnpm --filter @club/shared build && pnpm run build && node ../../scripts/vercel-migrate.mjs && pnpm --filter @club/api deploy --prod --legacy --ignore-scripts server-output && node ../../scripts/api-runtime-package.mjs --standalone"
     },
     "web": {
       "root": "apps/web",
