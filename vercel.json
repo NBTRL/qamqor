@@ -5,6 +5,7 @@
     "api": {
       "root": "apps/api",
       "framework": "nestjs",
+      "outputDirectory": "dist",
       "buildCommand": "pnpm --filter @club/shared build && pnpm run build && node ../../scripts/vercel-migrate.mjs"
     },
     "web": {
