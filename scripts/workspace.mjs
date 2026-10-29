@@ -97,6 +97,9 @@ try {
       await pnpm(['--filter', '@club/api', 'export:openapi']);
       await pnpm(['--filter', '@club/web', 'gen:api']);
       break;
+    case 'storage:inspect':
+      await pnpm(['--filter', '@club/api', 'storage:inspect', ...process.argv.slice(3)]);
+      break;
     case 'db:deploy':
     case 'db:migrate':
       await pnpm(['--filter', '@club/api', command]);

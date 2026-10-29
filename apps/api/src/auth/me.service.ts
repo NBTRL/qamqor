@@ -1,3 +1,4 @@
+import { lockFileReferences, retainFileReferences } from '../storage/file-references.js';
 import { Injectable } from '@nestjs/common';
 import { retryTransaction } from '../common/transaction-retry.js';
 import { NotificationService } from '../notifications/notification.service.js';
@@ -62,11 +63,13 @@ export class MeService {
       await this.storage.verifyAvatar(user.id, dto.avatarUrl);
     }
     const updated = await this.prisma.$transaction(async (tx) => {
+      await lockFileReferences(tx);
       await lockActiveUser(tx, user.id);
       const row = await tx.user.update({
         where: { id: user.id },
         data: { ...dto, fullName: dto.fullName?.trim() },
       });
+      await retainFileReferences(tx, { avatarUrl: row.avatarUrl }, getEnvironment());
       await this.audit.record(tx, user.id, 'PROFILE_UPDATED', 'User', user.id, {
         fields: Object.keys(dto),
       });
@@ -193,7 +196,7 @@ export class MeService {
         });
         await tx.uploadAsset.updateMany({
           where: { userId: user.id },
-          data: { deletedAt: new Date() },
+          data: { deletedAt: new Date(), deletionReason: 'ACCOUNT_ANONYMIZED' },
         });
         await tx.notification.deleteMany({ where: { userId: user.id } });
         await tx.notificationSetting.deleteMany({ where: { userId: user.id } });
