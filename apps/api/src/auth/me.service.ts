@@ -1,4 +1,7 @@
 import { Injectable } from '@nestjs/common';
+import { retryTransaction } from '../common/transaction-retry.js';
+import { NotificationService } from '../notifications/notification.service.js';
+import { cancelFutureRegistrations } from '../club/registration-cleanup.js';
 import { ErrorCode, onboardingSchema, UserRole } from '@club/shared';
 import { Prisma } from '../generated/prisma/client.js';
 import type { User } from '../generated/prisma/client.js';
@@ -16,6 +19,7 @@ export class MeService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly storage: StorageService,
+    private readonly notifications: NotificationService,
   ) {}
   async me(user: User) {
     const curators = await this.prisma.placeCurator.findMany({
@@ -111,76 +115,91 @@ export class MeService {
     return { ok: true };
   }
   async anonymize(user: User, actorId: string = user.id): Promise<{ ok: true }> {
-    await this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT "id" FROM "users" WHERE "id"=${user.id}::uuid FOR UPDATE`;
-      await tx.user.update({
-        where: { id: user.id },
-        data: {
-          telegramId: null,
-          telegramUsername: null,
-          chatId: null,
-          phone: null,
-          fullName: 'Удаленный пользователь',
-          nickname: null,
-          avatarUrl: null,
-          city: null,
-          email: null,
-          emailVerifiedAt: null,
-          birthDate: null,
-          consentAt: null,
-          consentVersion: null,
-          botBlockedAt: null,
-          lastLoginAt: null,
-          anonymizedAt: new Date(),
-          isBlocked: true,
-          role: 'CANDIDATE',
-        },
-      });
-      await tx.refreshToken.updateMany({
-        where: { userId: user.id },
-        data: { revokedAt: new Date() },
-      });
-      await tx.placeCurator.deleteMany({ where: { userId: user.id } });
-      await tx.tripRegistration.updateMany({ where: { userId: user.id }, data: { comment: null } });
-      const application = await tx.candidateApplication.findUnique({ where: { userId: user.id } });
-      if (application) {
-        await tx.candidateApplication.update({
-          where: { id: application.id },
-          data: { questionnaire: Prisma.DbNull, adminComment: null },
+    await retryTransaction(() =>
+      this.prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT "id" FROM "users" WHERE "id"=${user.id}::uuid FOR UPDATE`;
+        await tx.user.update({
+          where: { id: user.id },
+          data: {
+            telegramId: null,
+            telegramUsername: null,
+            chatId: null,
+            phone: null,
+            fullName: 'Удаленный пользователь',
+            nickname: null,
+            avatarUrl: null,
+            city: null,
+            email: null,
+            emailVerifiedAt: null,
+            birthDate: null,
+            consentAt: null,
+            consentVersion: null,
+            botBlockedAt: null,
+            lastLoginAt: null,
+            anonymizedAt: new Date(),
+            isBlocked: true,
+            role: 'CANDIDATE',
+          },
         });
-        await tx.applicationHistory.updateMany({
-          where: { applicationId: application.id },
+        await tx.refreshToken.updateMany({
+          where: { userId: user.id },
+          data: { revokedAt: new Date() },
+        });
+        await tx.placeCurator.deleteMany({ where: { userId: user.id } });
+        await cancelFutureRegistrations(
+          tx,
+          this.audit,
+          this.notifications,
+          user.id,
+          actorId,
+          new Date(),
+        );
+        await tx.tripRegistration.updateMany({
+          where: { userId: user.id },
           data: { comment: null },
         });
-      }
-      const uploads = await tx.uploadAsset.findMany({
-        where: { userId: user.id },
-        select: { key: true },
-      });
-      await tx.reportPhoto.deleteMany({
-        where: {
-          OR: [
-            { report: { authorId: user.id } },
-            {
-              url: {
-                in: uploads.map((asset) => `s3://${getEnvironment().S3_BUCKET}/${asset.key}`),
+        const application = await tx.candidateApplication.findUnique({
+          where: { userId: user.id },
+        });
+        if (application) {
+          await tx.candidateApplication.update({
+            where: { id: application.id },
+            data: { questionnaire: Prisma.DbNull, adminComment: null },
+          });
+          await tx.applicationHistory.updateMany({
+            where: { applicationId: application.id },
+            data: { comment: null },
+          });
+        }
+        const uploads = await tx.uploadAsset.findMany({
+          where: { userId: user.id },
+          select: { key: true },
+        });
+        await tx.reportPhoto.deleteMany({
+          where: {
+            OR: [
+              { report: { authorId: user.id } },
+              {
+                url: {
+                  in: uploads.map((asset) => `s3://${getEnvironment().S3_BUCKET}/${asset.key}`),
+                },
               },
-            },
-          ],
-        },
-      });
-      await tx.report.updateMany({
-        where: { authorId: user.id },
-        data: { text: 'Отчет удаленного пользователя. Статистические данные сохранены.' },
-      });
-      await tx.uploadAsset.updateMany({
-        where: { userId: user.id },
-        data: { deletedAt: new Date() },
-      });
-      await tx.notification.deleteMany({ where: { userId: user.id } });
-      await tx.notificationSetting.deleteMany({ where: { userId: user.id } });
-      await this.audit.record(tx, actorId, 'ACCOUNT_ANONYMIZED', 'User', user.id);
-    });
+            ],
+          },
+        });
+        await tx.report.updateMany({
+          where: { authorId: user.id },
+          data: { text: 'Отчет удаленного пользователя. Статистические данные сохранены.' },
+        });
+        await tx.uploadAsset.updateMany({
+          where: { userId: user.id },
+          data: { deletedAt: new Date() },
+        });
+        await tx.notification.deleteMany({ where: { userId: user.id } });
+        await tx.notificationSetting.deleteMany({ where: { userId: user.id } });
+        await this.audit.record(tx, actorId, 'ACCOUNT_ANONYMIZED', 'User', user.id);
+      }),
+    );
     // После отзыва доступа удаляем challenges отдельно, не меняя порядок блокировок входа.
     await this.prisma.$transaction([
       this.prisma.loginToken.deleteMany({ where: { userId: user.id } }),
