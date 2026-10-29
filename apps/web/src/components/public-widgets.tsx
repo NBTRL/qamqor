@@ -10,12 +10,9 @@ import {
   CONSENT_VERSION,
   contactRequestSchema,
   type ContactRequestInput,
-  eventCalendarColors,
-  eventTypeLabels,
-  EventType,
   placeTypeLabels,
 } from '@club/shared';
-import { api, result, type Model, type Page } from '@/lib/api/client';
+import { api, result, type Model } from '@/lib/api/client';
 import { date } from '@/lib/format';
 import { useAuth } from './providers';
 import { Button, ButtonLink, Modal, RichText, Empty, ErrorNotice, Field, Loading } from './ui';
@@ -288,63 +285,6 @@ export function HomeModals() {
           </>
         )}
       </Modal>
-    </>
-  );
-}
-export function Calendar({ initial }: { initial: Page<Model<'CalendarItemDto'>> | null }) {
-  const { me, loading } = useAuth();
-  const query = useQuery({
-    queryKey: ['calendar', me?.id ?? 'guest'],
-    queryFn: () =>
-      me
-        ? result(api.GET('/api/v1/calendar', { params: { query: { limit: 100 } } }))
-        : result(api.GET('/api/v1/public/calendar', { params: { query: { limit: 100 } } })),
-    enabled: !loading,
-    initialData: !me ? (initial ?? undefined) : undefined,
-  });
-  return (
-    <>
-      <div className="legend">
-        {Object.values(EventType).map((type) => (
-          <span key={type}>
-            <i className="legend__dot" style={{ background: eventCalendarColors[type] }} />
-            {eventTypeLabels[type]}
-          </span>
-        ))}
-      </div>
-      <ErrorNotice error={query.error} />
-      {query.isLoading ? (
-        <Loading />
-      ) : !query.data?.items.length ? (
-        <Empty>Ближайших событий пока нет.</Empty>
-      ) : (
-        query.data.items.map((item) => (
-          <article
-            className="calendar-item"
-            style={{ borderColor: eventCalendarColors[item.type] }}
-            key={`${item.type}-${item.id}`}
-          >
-            <span className="badge">{eventTypeLabels[item.type]}</span>
-            <h2>
-              {me ? (
-                <Link href={`/${item.type === EventType.TRIP ? 'trips' : 'events'}/${item.id}`}>
-                  {item.title}
-                </Link>
-              ) : (
-                item.title
-              )}
-            </h2>
-            <p>
-              {date(item.startsAt)}
-              {item.endsAt && ` — ${date(item.endsAt)}`}
-            </p>
-            {item.region && <p>{item.region.name}</p>}
-            {item.place && <p>{item.place.name}</p>}
-            {item.location && <p>{item.location}</p>}
-            {item.meetingPoint && <p>Место сбора: {item.meetingPoint}</p>}
-          </article>
-        ))
-      )}
     </>
   );
 }

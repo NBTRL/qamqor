@@ -3,10 +3,11 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { sections, publicList } from '@/lib/public-content';
 import { serverApi } from '@/lib/api/server';
-import { result } from '@/lib/api/client';
-import { ContactForm, OpenDays, StepList, Calendar, PlaceCard } from '@/components/public-widgets';
+import { result, message } from '@/lib/api/client';
+import { ContactForm, OpenDays, StepList, PlaceCard } from '@/components/public-widgets';
 import { ButtonLink, Empty, RichText, ErrorNotice } from '@/components/ui';
 import { date } from '@/lib/format';
+import { Calendar } from '@/components/calendar';
 export async function generateMetadata({ params }: { params: Promise<{ section: string }> }) {
   const { section } = await params;
   const title = sections[section as keyof typeof sections];
@@ -106,14 +107,24 @@ export default async function Page({
       </>
     );
   } else if (section === 'kalendar') {
+    const from = new Date();
+    const range = {
+      from: from.toISOString(),
+      to: new Date(from.getTime() + 90 * 86400_000).toISOString(),
+    };
     const response = await capture(
-      result(api.GET('/api/v1/public/calendar', { params: { query: { limit: 100 } } })),
+      result(
+        api.GET('/api/v1/public/calendar', {
+          params: { query: { ...range, page: 1, limit: 100 } },
+        }),
+      ),
     );
     content = (
-      <>
-        <ErrorNotice error={response.error} />
-        <Calendar initial={response.data} />
-      </>
+      <Calendar
+        initial={response.data}
+        range={range}
+        initialError={response.error ? message(response.error) : undefined}
+      />
     );
   } else if (section === 'uchrezhdeniya') {
     const response = await capture(
