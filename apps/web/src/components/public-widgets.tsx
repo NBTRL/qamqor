@@ -1,5 +1,6 @@
 'use client';
 import Image from 'next/image';
+import { PlaceNeedsPreview } from './place-needs';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -391,6 +392,7 @@ export function PlaceCard({ item }: { item: Model<'PlaceResponseDto'> }) {
           {item.region.name} · {item.city}
         </p>
         {item.district && <p>Район: {item.district}</p>}
+        <PlaceNeedsPreview place={item} />
       </div>
     </article>
   );

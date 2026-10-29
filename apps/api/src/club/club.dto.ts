@@ -93,6 +93,15 @@ export class PlaceResponseDto {
   address?: string | null;
   @ApiPropertyOptional({ description: 'Только VOLUNTEER/ADMIN после онбординга.' })
   privateNotes?: string;
+  @ApiPropertyOptional({
+    type: () => [NeedResponseDto],
+    description: 'Первые активные нужды учреждения.',
+  })
+  needs?: NeedResponseDto[];
+  @ApiPropertyOptional({ minimum: 0 }) needsTotal?: number;
+}
+export class NeedQueryDto extends PageQueryDto {
+  @ApiPropertyOptional({ format: 'uuid' }) @IsOptional() @IsUUID() placeId?: string;
 }
 export class TripQueryDto extends PlaceQueryDto {
   @ApiPropertyOptional({ enum: TripStatus, default: TripStatus.OPEN })

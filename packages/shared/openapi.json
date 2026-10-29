@@ -2602,6 +2602,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "placeId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -10040,6 +10049,35 @@
           "id"
         ]
       },
+      "NeedResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "placeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "isActive": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "placeId",
+          "title",
+          "description",
+          "isActive"
+        ]
+      },
       "PlaceResponseDto": {
         "type": "object",
         "properties": {
@@ -10090,6 +10128,17 @@
           "privateNotes": {
             "type": "string",
             "description": "Только VOLUNTEER/ADMIN после онбординга."
+          },
+          "needs": {
+            "description": "Первые активные нужды учреждения.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NeedResponseDto"
+            }
+          },
+          "needsTotal": {
+            "type": "number",
+            "minimum": 0
           }
         },
         "required": [
@@ -10336,35 +10385,6 @@
           "id",
           "status",
           "createdAt"
-        ]
-      },
-      "NeedResponseDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "placeId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "title": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string"
-          },
-          "isActive": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "id",
-          "placeId",
-          "title",
-          "description",
-          "isActive"
         ]
       },
       "TripCreateDto": {

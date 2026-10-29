@@ -39,6 +39,7 @@ import {
   EventResponseDto,
   MeRegistrationResponseDto,
   NeedResponseDto,
+  NeedQueryDto,
   NeedsWriteDto,
   OpenDayResponseDto,
   RegionResponseDto,
@@ -296,7 +297,7 @@ export class PublicClubController {
   @Get('public/regions') @ApiPage(RegionResponseDto) regions(@Query() query: PageQueryDto) {
     return this.places.regions(query);
   }
-  @Get('needs') @ApiPage(NeedResponseDto) needs(@Query() query: PageQueryDto) {
+  @Get('needs') @ApiPage(NeedResponseDto) needs(@Query() query: NeedQueryDto) {
     return this.places.publicNeeds(query);
   }
   @Get('open-days') @ApiPage(OpenDayResponseDto) daysList(@Query() query: PageQueryDto) {

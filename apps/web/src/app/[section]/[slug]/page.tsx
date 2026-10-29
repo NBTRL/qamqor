@@ -1,4 +1,5 @@
 import Image from 'next/image';
+import { PlaceNeeds } from '@/components/place-needs';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { z } from 'zod';
@@ -64,6 +65,19 @@ export default async function Page({
           {item.address && <p>Адрес: {item.address}</p>}
           {item.privateNotes && <p>{item.privateNotes}</p>}
           <PrivatePlace slug={slug} />
+          <PlaceNeeds
+            placeId={item.id}
+            initial={
+              item.needs && item.needsTotal !== undefined
+                ? {
+                    items: item.needs,
+                    total: item.needsTotal,
+                    page: 1,
+                    limit: 20,
+                  }
+                : undefined
+            }
+          />
         </>
       ) : (
         <>

@@ -1784,6 +1784,15 @@ export interface components {
             /** Format: uuid */
             id: string;
         };
+        NeedResponseDto: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            placeId: string;
+            title: string;
+            description: string;
+            isActive: boolean;
+        };
         PlaceResponseDto: {
             /** Format: uuid */
             id: string;
@@ -1801,6 +1810,9 @@ export interface components {
             address?: string | null;
             /** @description Только VOLUNTEER/ADMIN после онбординга. */
             privateNotes?: string;
+            /** @description Первые активные нужды учреждения. */
+            needs?: components["schemas"]["NeedResponseDto"][];
+            needsTotal?: number;
         };
         TripResponseDto: {
             /** Format: uuid */
@@ -1872,15 +1884,6 @@ export interface components {
             status: "PENDING" | "CONFIRMED" | "WAITLIST" | "REJECTED" | "CANCELLED" | "ATTENDED" | "NO_SHOW";
             /** Format: date-time */
             createdAt: string;
-        };
-        NeedResponseDto: {
-            /** Format: uuid */
-            id: string;
-            /** Format: uuid */
-            placeId: string;
-            title: string;
-            description: string;
-            isActive: boolean;
         };
         TripCreateDto: {
             /** Format: uuid */
@@ -4102,6 +4105,7 @@ export interface operations {
                 page?: number;
                 limit?: number;
                 search?: string;
+                placeId?: string;
             };
             header?: never;
             path?: never;
