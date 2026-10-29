@@ -33,19 +33,39 @@ export default async function Page({
   if (!title) notFound();
   const page = Math.max(1, Number((await searchParams).page) || 1);
   const api = await serverApi();
+  const managed = ['kontakty', 'policy', 'donation'].includes(section)
+    ? await capture(
+        (async () => {
+          const response = await api.GET('/api/v1/pages/{slug}', {
+            params: { path: { slug: section } },
+          });
+          if (response.response.status === 404) return null;
+          return result(Promise.resolve(response));
+        })(),
+      )
+    : null;
+  const managedContent = managed?.error ? (
+    <div className="notice" role="alert">
+      Не удалось загрузить содержимое страницы. Обновите страницу и повторите попытку.
+    </div>
+  ) : managed?.data?.bodyHtml.trim() ? (
+    <RichText html={managed.data.bodyHtml} />
+  ) : null;
   let content;
   if (section === 'kontakty')
     content = (
       <>
-        <p>
-          Свяжитесь с командой Клуба через форму. Контактные реквизиты будут добавлены
-          администратором.
-        </p>
+        {managedContent ?? (
+          <p>
+            Свяжитесь с командой Клуба через форму. Контактные реквизиты будут добавлены
+            администратором.
+          </p>
+        )}
         <ContactForm />
       </>
     );
   else if (section === 'policy')
-    content = (
+    content = managedContent ?? (
       <div className="notice">
         <h2>Документ готовится</h2>
         <p>
@@ -58,21 +78,23 @@ export default async function Page({
     content = (
       <>
         <p>Помочь можно временем, нужными вещами и поддержкой работы Клуба.</p>
-        <div className="notice">
-          <h2>Реквизиты — заглушка</h2>
-          <p>
-            Получатель: [название Клуба]
-            <br />
-            ИНН: [будет добавлен]
-            <br />
-            Расчетный счет: [будет добавлен]
-            <br />
-            Банк и БИК: [будут добавлены]
-          </p>
-          <p>
-            Онлайн-оплата не подключена. Перед переводом запросите актуальные реквизиты у команды.
-          </p>
-        </div>
+        {managedContent ?? (
+          <div className="notice">
+            <h2>Реквизиты — заглушка</h2>
+            <p>
+              Получатель: [название Клуба]
+              <br />
+              ИНН: [будет добавлен]
+              <br />
+              Расчетный счет: [будет добавлен]
+              <br />
+              Банк и БИК: [будут добавлены]
+            </p>
+            <p>
+              Онлайн-оплата не подключена. Перед переводом запросите актуальные реквизиты у команды.
+            </p>
+          </div>
+        )}
         <ButtonLink href="/kontakty">Обсудить помощь</ButtonLink>
       </>
     );
