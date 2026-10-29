@@ -58,6 +58,8 @@ jobs:
         run: pnpm --filter @club/web exec playwright test --config playwright.needs.config.ts
       - name: Check calendar pagination
         run: pnpm --filter @club/web exec playwright test --config playwright.calendar.config.ts
+      - name: Check managed public pages
+        run: pnpm --filter @club/web exec playwright test --config playwright.pages.config.ts
 
   backend:
     name: Backend integration
