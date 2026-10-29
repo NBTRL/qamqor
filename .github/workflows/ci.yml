@@ -1,0 +1,97 @@
+name: Project checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: project-checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Quality and browser tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CI: 'true'
+      HUSKY: '0'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - name: Install pnpm
+        run: npm install --global pnpm@11.25.0
+      - name: Create isolated test environment
+        run: |
+          node --input-type=module <<'JS'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          import { randomBytes } from 'node:crypto';
+          const template = readFileSync('.env.example', 'utf8')
+            .replace(/^JWT_SECRET=.*$/m, 'JWT_SECRET=' + randomBytes(48).toString('hex'))
+            .replace(/^S3_SECRET_KEY=.*$/m, 'S3_SECRET_KEY=' + randomBytes(32).toString('hex'));
+          writeFileSync('.env', template, { flag: 'wx', mode: 0o600 });
+          JS
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm test
+      - name: Check generated API contracts
+        run: |
+          pnpm gen:api
+          git diff --exit-code -- packages/shared/openapi.json apps/web/src/lib/api/schema.d.ts apps/web/src/lib/resources.ts apps/web/src/lib/form-definitions.json
+      - run: pnpm build
+      - run: pnpm typecheck
+      - name: Install Chromium
+        run: pnpm --filter @club/web exec playwright install --with-deps chromium
+      - name: Check public and signed-in user flows
+        run: pnpm --filter @club/web exec playwright test --config playwright.ci.config.ts
+      - name: Check institution needs
+        run: pnpm --filter @club/web exec playwright test --config playwright.needs.config.ts
+      - name: Check calendar pagination
+        run: pnpm --filter @club/web exec playwright test --config playwright.calendar.config.ts
+
+  backend:
+    name: Backend integration
+    needs: quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      CI: 'true'
+      HUSKY: '0'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - run: npm install --global pnpm@11.25.0
+      - name: Create isolated test environment
+        run: |
+          node --input-type=module <<'JS'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          import { randomBytes } from 'node:crypto';
+          const template = readFileSync('.env.example', 'utf8')
+            .replace(/^JWT_SECRET=.*$/m, 'JWT_SECRET=' + randomBytes(48).toString('hex'))
+            .replace(/^S3_SECRET_KEY=.*$/m, 'S3_SECRET_KEY=' + randomBytes(32).toString('hex'));
+          writeFileSync('.env', template, { flag: 'wx', mode: 0o600 });
+          JS
+      - run: pnpm install --frozen-lockfile
+      - name: Start local infrastructure
+        run: |
+          docker compose up --detach --build --wait postgres redis minio mailpit
+          docker compose run --rm minio-init
+      - run: pnpm test:e2e
+      - name: Stop isolated infrastructure
+        if: always()
+        run: docker compose down --volumes --remove-orphans
