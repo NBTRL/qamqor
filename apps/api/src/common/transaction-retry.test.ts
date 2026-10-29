@@ -6,6 +6,10 @@ describe('Transaction retry', () => {
     { code: 'P2034' },
     { code: 'P2010', meta: { code: '40P01' } },
     { code: 'P2010', meta: { code: '40001' } },
+    { code: 'P2010', meta: { driverAdapterError: { cause: { originalCode: '40P01' } } } },
+    { code: 'P2010', meta: { driverAdapterError: { cause: { originalCode: '40001' } } } },
+    { code: 'P2010', meta: { driverAdapterError: { cause: { code: '40P01' } } } },
+    { code: 'P2039', meta: { driverAdapterError: { cause: { code: '40P01' } } } },
   ])('retries a rolled-back transaction (%j)', async (error) => {
     const operation = vi.fn().mockRejectedValueOnce(error).mockResolvedValue('committed');
     await expect(retryTransaction(operation)).resolves.toBe('committed');
@@ -17,8 +21,11 @@ describe('Transaction retry', () => {
     await expect(retryTransaction(operation)).rejects.toBe(error);
     expect(operation).toHaveBeenCalledTimes(3);
   });
-  it('does not retry validation or other persistence failures', async () => {
-    const error = new Error('notification persistence failed');
+  it.each([
+    new Error('notification persistence failed'),
+    { code: 'P2010', meta: { driverAdapterError: { cause: { code: '23505' } } } },
+    { code: 'VALIDATION_ERROR', meta: { code: '40P01' } },
+  ])('does not retry validation or other persistence failures (%j)', async (error) => {
     const operation = vi.fn().mockRejectedValue(error);
     await expect(retryTransaction(operation)).rejects.toBe(error);
     expect(operation).toHaveBeenCalledTimes(1);

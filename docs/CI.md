@@ -17,6 +17,8 @@ Workflow `Project checks` запускается для pull request, push в ma
 
 После успешной quality-проверки Docker Compose поднимает PostgreSQL, Redis, MinIO и Mailpit. MinIO собирается из официального исходного релиза существующим Dockerfile. `minio-init` создаёт закрытый тестовый бакет. `pnpm test:e2e` создаёт отдельную БД `club_test_*`, применяет миграции, выполняет весь backend E2E и удаляет временную БД. В конце Docker volumes удаляются на этом одноразовом GitHub runner.
 
+Отдельный тест намеренно создаёт PostgreSQL deadlock между двумя транзакциями и проверяет, что механизм повторов распознаёт ошибку Prisma/адаптера и позволяет обеим операциям завершиться.
+
 Реальная доставка Telegram, внешний SMTP и внешний S3 этим workflow не подтверждаются. Ни тестовый Telegram-вход, ни credentials из этого workflow не предназначены для production.
 
 ## Локальный запуск
@@ -31,6 +33,7 @@ pnpm --filter @club/web exec playwright install chromium
 pnpm --filter @club/web exec playwright test --config playwright.ci.config.ts
 pnpm --filter @club/web exec playwright test --config playwright.needs.config.ts
 pnpm --filter @club/web exec playwright test --config playwright.calendar.config.ts
+pnpm --filter @club/web exec playwright test --config playwright.pages.config.ts
 ```
 
 Для полного backend E2E нужна локальная инфраструктура из docker-compose.yml и `pnpm test:e2e`. При собственном Chromium задайте CHROME_PATH; по умолчанию используется установленный Playwright браузер на любой ОС.
