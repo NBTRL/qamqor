@@ -937,3 +937,40 @@ main {
   gap: 20px;
   min-width: 0;
 }
+
+.needs-preview {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-border);
+  overflow-wrap: anywhere;
+}
+.needs-preview h3 {
+  font-size: 1rem;
+  margin: 0 0 0.5rem;
+}
+.needs-preview ul {
+  margin: 0 0 0.75rem;
+  padding-left: 1.25rem;
+}
+.place-needs {
+  margin-top: 2rem;
+  overflow-wrap: anywhere;
+}
+.need-list {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
+}
+.need-list li {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: 1rem;
+}
+.need-list h3 {
+  margin: 0 0 0.5rem;
+}
+.need-list p {
+  margin: 0;
+  white-space: pre-wrap;
+}

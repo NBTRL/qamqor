@@ -1,15 +1,31 @@
 import { Injectable } from '@nestjs/common';
 import { ErrorCode, PlaceType } from '@club/shared';
-import type { Place, Region, Prisma } from '../generated/prisma/client.js';
+import type { Place, Region, NeedItem, Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AuditService, type Tx } from '../common/audit.service.js';
 import { ApiException } from '../common/api-exception.js';
 import { hasPrivateAccess, type Actor } from '../common/http.js';
 import { pageArgs, pageResult, type PageQueryDto } from '../common/query.dto.js';
-import type { NeedsWriteDto, PlacePatchDto, PlaceQueryDto, PlaceWriteDto } from './club.dto.js';
+import type {
+  NeedQueryDto,
+  NeedsWriteDto,
+  PlacePatchDto,
+  PlaceQueryDto,
+  PlaceWriteDto,
+} from './club.dto.js';
 import { StorageService } from '../storage/storage.service.js';
 
-export function projectPlace(place: Place & { region: Region }, privateAccess: boolean) {
+const withPublicNeeds = (limit: number) =>
+  ({
+    region: true,
+    needs: { where: { isActive: true }, orderBy: { id: 'asc' }, take: limit },
+    _count: { select: { needs: { where: { isActive: true } } } },
+  }) satisfies Prisma.PlaceInclude;
+
+export function projectPlace(
+  place: Place & { region: Region; needs?: NeedItem[]; _count?: { needs: number } },
+  privateAccess: boolean,
+) {
   return {
     id: place.id,
     slug: place.slug,
@@ -21,6 +37,18 @@ export function projectPlace(place: Place & { region: Region }, privateAccess: b
     description: place.description,
     coverImage: place.coverImageUrl,
     beneficiariesCount: place.beneficiariesCount,
+    ...(place.needs && place._count
+      ? {
+          needs: place.needs.map(({ id, placeId, title, description, isActive }) => ({
+            id,
+            placeId,
+            title,
+            description,
+            isActive,
+          })),
+          needsTotal: place._count.needs,
+        }
+      : {}),
     ...(privateAccess ? { address: place.address, privateNotes: place.privateNotes } : {}),
   };
 }
@@ -91,7 +119,7 @@ export class PlacesService {
     const [rows, total] = await Promise.all([
       this.prisma.place.findMany({
         where,
-        include: { region: true },
+        include: withPublicNeeds(3),
         orderBy: [{ name: 'asc' }, { id: 'asc' }],
         ...pageArgs(query),
       }),
@@ -104,7 +132,10 @@ export class PlacesService {
     );
   }
   async detail(slug: string, actor?: Actor) {
-    const row = await this.prisma.place.findUnique({ where: { slug }, include: { region: true } });
+    const row = await this.prisma.place.findUnique({
+      where: { slug },
+      include: withPublicNeeds(20),
+    });
     if (!row || (!row.isActive && actor?.role !== 'ADMIN'))
       throw new ApiException(ErrorCode.NOT_FOUND);
     return projectPlace(row, hasPrivateAccess(actor));
@@ -158,8 +189,8 @@ export class PlacesService {
       return { items, total: await tx.needItem.count({ where: { placeId } }), page: 1, limit: 100 };
     });
   }
-  async publicNeeds(query: PageQueryDto) {
-    const where = { isActive: true, place: { isActive: true } };
+  async publicNeeds(query: NeedQueryDto) {
+    const where = { placeId: query.placeId, isActive: true, place: { isActive: true } };
     const [items, total] = await Promise.all([
       this.prisma.needItem.findMany({ where, orderBy: { id: 'asc' }, ...pageArgs(query) }),
       this.prisma.needItem.count({ where }),
