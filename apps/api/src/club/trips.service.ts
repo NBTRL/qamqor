@@ -1,3 +1,5 @@
+import { getEnvironment } from '../config/environment.js';
+import { lockFileReferences, retainFileReferences } from '../storage/file-references.js';
 import { Injectable, Logger } from '@nestjs/common';
 import { promoteTripWaitlist } from './trip-waitlist.js';
 import { ErrorCode, RegistrationStatus, TripStatus, type NotificationType } from '@club/shared';
@@ -389,6 +391,7 @@ export class TripsService {
       dto.photos.map((photo) => photo.uploadId),
     );
     await this.prisma.$transaction(async (tx) => {
+      await lockFileReferences(tx);
       await lockActiveUser(tx, actor.id);
       const trip = await this.lock(tx, id);
       await assertCurator(tx, actor, trip.placeId);
@@ -431,6 +434,7 @@ export class TripsService {
             isPublic: photo.isPublic ?? false,
           })),
         });
+      await retainFileReferences(tx, [...photos.values()], getEnvironment());
       if (trip.status === 'DONE') {
         await this.audit.transition(tx, actor.id, 'Trip', id, 'TripStatus', 'DONE', 'REPORTED');
         await tx.trip.update({ where: { id }, data: { status: 'REPORTED' } });

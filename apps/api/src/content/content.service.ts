@@ -1,3 +1,6 @@
+import { lockActiveUser } from '../common/active-user.js';
+import { getEnvironment } from '../config/environment.js';
+import { lockFileReferences, retainFileReferences } from '../storage/file-references.js';
 import { Injectable } from '@nestjs/common';
 import sanitizeHtml from 'sanitize-html';
 import { ErrorCode } from '@club/shared';
@@ -120,6 +123,8 @@ export class ContentService {
       }
     }
     return this.prisma.$transaction(async (tx) => {
+      await lockFileReferences(tx);
+      await lockActiveUser(tx, actor.id);
       if (id && name === 'news')
         await tx.$queryRaw`SELECT "id" FROM "news_posts" WHERE "id"=${id}::uuid FOR UPDATE`;
       const model = this.model(tx, name);
@@ -145,6 +150,16 @@ export class ContentService {
       )
         data.publishedAt = new Date();
       const row = id ? await model.update({ where: { id }, data }) : await model.create({ data });
+      await retainFileReferences(
+        tx,
+        [
+          ...(config.assetFields ?? []).map((field) => row[field]),
+          config.html ? row.bodyHtml : undefined,
+          name === 'press' ? row.url : undefined,
+          name === 'partners' ? row.websiteUrl : undefined,
+        ],
+        getEnvironment(),
+      );
       if (
         config.status &&
         data.status !== undefined &&

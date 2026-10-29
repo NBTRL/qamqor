@@ -29,6 +29,7 @@ import { ApiException } from '../common/api-exception.js';
 import type { Actor } from '../common/http.js';
 import type { PresignDto } from './storage.controller.js';
 import { isUUID } from 'class-validator';
+import { inspectUnusedUploads, prepareFileDeletion } from './upload-lifecycle.js';
 import { isCmsFilePublic } from './cms-file-access.js';
 
 @Injectable()
@@ -223,6 +224,10 @@ export class StorageService implements OnModuleInit, OnModuleDestroy, OnApplicat
                 bytes.subarray(8, 12).toString() === 'WEBP'
               : contentType === 'application/pdf' && bytes.subarray(0, 5).toString() === '%PDF-';
       if (!valid) throw new Error();
+      await this.prisma.uploadAsset.updateMany({
+        where: { key, deletedAt: null, completedAt: null },
+        data: { completedAt: new Date() },
+      });
     } catch {
       throw new ApiException(ErrorCode.VALIDATION_ERROR, {
         reason: 'Загрузка не завершена или параметры файла не совпадают.',
@@ -287,14 +292,7 @@ export class StorageService implements OnModuleInit, OnModuleDestroy, OnApplicat
     this.queues.worker<{ id: string }>(
       'storage-cleanup',
       async (job) => {
-        const asset = await this.prisma.uploadAsset.findUnique({ where: { id: job.data.id } });
-        if (!asset?.deletedAt) return;
-        await this.client.send(
-          new DeleteObjectCommand({ Bucket: this.env.S3_BUCKET, Key: asset.key }),
-        );
-        await this.prisma.uploadAsset.deleteMany({
-          where: { id: asset.id, deletedAt: { not: null } },
-        });
+        await this.purgeDeleted(job.data.id);
       },
       { concurrency: 3 },
     );
@@ -314,7 +312,14 @@ export class StorageService implements OnModuleInit, OnModuleDestroy, OnApplicat
       tick();
     }
   }
+  async purgeDeleted(id: string): Promise<void> {
+    const asset = await prepareFileDeletion(this.prisma, id);
+    if (!asset) return;
+    await this.client.send(new DeleteObjectCommand({ Bucket: this.env.S3_BUCKET, Key: asset.key }));
+    await this.prisma.uploadAsset.deleteMany({ where: { id: asset.id, deletedAt: { not: null } } });
+  }
   private async cleanup(): Promise<void> {
+    await inspectUnusedUploads(this.prisma, { dryRun: false });
     const rows = await this.prisma.uploadAsset.findMany({
       where: { deletedAt: { not: null } },
       take: 100,
@@ -322,7 +327,10 @@ export class StorageService implements OnModuleInit, OnModuleDestroy, OnApplicat
     for (const row of rows) {
       const jobId = `delete-${row.id}`;
       const old = await this.queue?.getJob(jobId);
-      if (old && (await old.getState()) === 'failed') await old.remove();
+      if (old) {
+        const state = await old.getState();
+        if (state === 'failed' || state === 'completed') await old.remove();
+      }
       await this.queue?.add('delete', { id: row.id }, { jobId });
     }
   }

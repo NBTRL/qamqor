@@ -28,7 +28,8 @@
     "gen:client": "pnpm --filter @club/web gen:client",
     "test:web": "pnpm --filter @club/web test",
     "lighthouse": "node scripts/lighthouse.mjs",
-    "test:ui": "pnpm --filter @club/web test:ui"
+    "test:ui": "pnpm --filter @club/web test:ui",
+    "storage:inspect": "node scripts/workspace.mjs storage:inspect"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",

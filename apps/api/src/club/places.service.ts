@@ -1,3 +1,6 @@
+import { lockActiveUser } from '../common/active-user.js';
+import { getEnvironment } from '../config/environment.js';
+import { lockFileReferences, retainFileReferences } from '../storage/file-references.js';
 import { Injectable } from '@nestjs/common';
 import { ErrorCode, PlaceType } from '@club/shared';
 import type { Place, Region, NeedItem, Prisma } from '../generated/prisma/client.js';
@@ -152,10 +155,13 @@ export class PlacesService {
             : 'Укажите адрес учреждения.',
       });
     return this.prisma.$transaction(async (tx) => {
+      await lockFileReferences(tx);
+      await lockActiveUser(tx, actor.id);
       const data = { ...dto };
       const row = id
         ? await tx.place.update({ where: { id }, data })
         : await tx.place.create({ data: data as PlaceWriteDto });
+      await retainFileReferences(tx, { coverImageUrl: row.coverImageUrl }, getEnvironment());
       await this.audit.record(tx, actor.id, id ? 'UPDATED' : 'CREATED', 'Place', row.id, {
         fields: Object.keys(dto),
       });
