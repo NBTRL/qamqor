@@ -341,6 +341,20 @@ export class OpenDaysService {
   }
   async attendance(actor: Actor, registrationId: string, attended: boolean) {
     return this.prisma.$transaction(async (tx) => {
+      const initial = await tx.openDayRegistration.findUniqueOrThrow({
+        where: { id: registrationId },
+      });
+      await tx.$queryRaw`SELECT "id" FROM "open_day_sessions" WHERE "id"=${initial.sessionId}::uuid FOR UPDATE`;
+      const current = await tx.openDayRegistration.findUniqueOrThrow({
+        where: { id: registrationId },
+        include: { session: true, user: true },
+      });
+      if (
+        attended &&
+        current.session.startsAt > new Date() &&
+        (current.user.anonymizedAt || current.user.isBlocked)
+      )
+        throw new ApiException(ErrorCode.FORBIDDEN);
       const row = await tx.openDayRegistration.update({
         where: { id: registrationId },
         data: { attended, ...(attended ? { cancelledAt: null } : {}) },

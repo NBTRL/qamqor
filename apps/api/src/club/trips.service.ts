@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { promoteTripWaitlist } from './trip-waitlist.js';
 import { ErrorCode, RegistrationStatus, TripStatus, type NotificationType } from '@club/shared';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -341,41 +342,8 @@ export class TripsService {
           title: trip.title,
           startsAt: trip.startsAt.toISOString(),
         });
-      if (row.status === 'CONFIRMED' && status === 'CANCELLED') {
-        const waiting = await tx.tripRegistration.findFirst({
-          where: {
-            tripId: trip.id,
-            status: 'WAITLIST',
-            user: { isBlocked: false, anonymizedAt: null, role: { in: ['VOLUNTEER', 'ADMIN'] } },
-          },
-          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-        });
-        if (waiting) {
-          await this.audit.transition(
-            tx,
-            null,
-            'TripRegistration',
-            waiting.id,
-            'RegistrationStatus',
-            'WAITLIST',
-            'PENDING',
-          );
-          await tx.tripRegistration.update({
-            where: { id: waiting.id },
-            data: { status: 'PENDING' },
-          });
-          const curators = await tx.placeCurator.findMany({
-            where: { placeId: trip.placeId },
-            select: { userId: true },
-          });
-          await this.notifications.notify(
-            tx,
-            [waiting.userId, ...curators.map((item) => item.userId)],
-            'RegistrationPromotedFromWaitlist',
-            { tripId: trip.id, title: trip.title, startsAt: trip.startsAt.toISOString() },
-          );
-        }
-      }
+      if (['CONFIRMED', 'PENDING'].includes(row.status) && status === 'CANCELLED')
+        await promoteTripWaitlist(tx, this.audit, this.notifications, trip);
       return { id: updated.id, status: updated.status, createdAt: updated.createdAt };
     });
   }
