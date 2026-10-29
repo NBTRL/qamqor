@@ -36,11 +36,16 @@ test('an institution with no needs has a clear empty state', async ({ page }) =>
 });
 
 test.describe('server-rendered public needs', () => {
-  test.use({ javaScriptEnabled: false });
-  test('the first page is visible without JavaScript or sign-in', async ({ page }) => {
+  test('the first page remains visible if the client refresh fails', async ({ page }) => {
+    let requests = 0;
+    await page.route('**/api/v1/needs*', (route) => {
+      requests++;
+      return route.fulfill({ status: 500, json: { code: 'INTERNAL_ERROR' } });
+    });
     await page.goto('/uchrezhdeniya/test-place#needs');
     await expect(page.getByRole('heading', { name: 'Нужда 20', exact: true })).toBeVisible();
     await expect(page.locator('#needs li')).toHaveCount(20);
+    await expect.poll(() => requests).toBeGreaterThan(0);
     await expect(
       page.getByRole('link', { name: 'Связаться с Клубом по поводу помощи' }),
     ).toBeVisible();
