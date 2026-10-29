@@ -52,3 +52,59 @@ describe('Session client', () => {
     expect(gets).toBe(2);
   });
 });
+
+describe('Cross-tab refresh coordination', () => {
+  it('holds an origin-wide lock until the response body has been consumed', async () => {
+    const events: string[] = [];
+    vi.stubGlobal('navigator', {
+      locks: {
+        request: vi.fn(async (name: string, callback: () => Promise<unknown>) => {
+          events.push(`lock:${name}`);
+          const value = await callback();
+          events.push('unlock');
+          return value;
+        }),
+      },
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        events.push('fetch');
+        return {
+          ok: true,
+          json: async () => {
+            events.push('body');
+            return { accessToken: 'locked-access' };
+          },
+        };
+      }),
+    );
+    const { refreshSession } = await import('./client');
+    await expect(refreshSession()).resolves.toBe('locked-access');
+    expect(events).toEqual(['lock:club:refresh', 'fetch', 'body', 'unlock']);
+  });
+
+  it('releases the lock and permits a retry after a network failure', async () => {
+    const request = vi.fn(async (_name: string, callback: () => Promise<unknown>) => callback());
+    vi.stubGlobal('navigator', { locks: { request } });
+    const fetch = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError('offline'))
+      .mockResolvedValueOnce(json({ accessToken: 'retry-access' }));
+    vi.stubGlobal('fetch', fetch);
+    const { refreshSession } = await import('./client');
+    await expect(refreshSession()).rejects.toThrow('offline');
+    await expect(refreshSession()).resolves.toBe('retry-access');
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps single-tab deduplication when Web Locks are unavailable', async () => {
+    vi.stubGlobal('navigator', {});
+    const fetch = vi.fn(async () => json({ accessToken: 'fallback-access' }));
+    vi.stubGlobal('fetch', fetch);
+    const { refreshSession } = await import('./client');
+    const values = await Promise.all([refreshSession(), refreshSession()]);
+    expect(values).toEqual(['fallback-access', 'fallback-access']);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+});

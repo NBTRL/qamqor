@@ -20,8 +20,8 @@ export const setAccessToken = (token?: string) => {
     window.dispatchEvent(new CustomEvent('club:session', { detail: !!token }));
 };
 export async function refreshSession(): Promise<string | undefined> {
-  if (!refreshFlight)
-    refreshFlight = (async () => {
+  if (!refreshFlight) {
+    const refresh = async () => {
       const response = await fetch('/api/v1/auth/refresh', {
         method: 'POST',
         credentials: 'include',
@@ -35,9 +35,18 @@ export async function refreshSession(): Promise<string | undefined> {
       const body: Model<'SessionResponseDto'> = await response.json();
       access = body.accessToken;
       return access;
+    };
+    // The HttpOnly cookie is shared by all tabs. Hold the origin-wide lock until
+    // Set-Cookie is applied and the response consumed, so the next tab sends the
+    // rotated cookie rather than replaying the previous one. Tokens stay in memory.
+    refreshFlight = (async () => {
+      if (typeof navigator !== 'undefined' && navigator.locks)
+        return navigator.locks.request('club:refresh', refresh);
+      return refresh();
     })().finally(() => {
       refreshFlight = undefined;
     });
+  }
   return refreshFlight;
 }
 async function sessionFetch(input: Request) {
