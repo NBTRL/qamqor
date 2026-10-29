@@ -4,10 +4,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { errorMessages, ErrorCode, LoginTokenStatus, loginTokenStatusLabels } from '@club/shared';
 import { setAccessToken } from '@/lib/api/client';
 import { Login } from './login';
-const { replace } = vi.hoisted(() => ({ replace: vi.fn() }));
+const { replace, location } = vi.hoisted(() => ({
+  replace: vi.fn(),
+  location: { next: '/cabinet/profile' },
+}));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace }),
-  useSearchParams: () => new URLSearchParams('next=/cabinet/profile'),
+  useSearchParams: () => new URLSearchParams({ next: location.next }),
 }));
 vi.mock('qrcode', () => ({
   default: { toDataURL: vi.fn().mockResolvedValue('data:image/png;base64,cXJjb2Rl') },
@@ -42,6 +45,7 @@ beforeEach(() => {
   poll = { status: LoginTokenStatus.PENDING };
   startError = undefined;
   meDone = true;
+  location.next = '/cabinet/profile';
   requests.length = 0;
   replace.mockClear();
   vi.stubGlobal(
@@ -62,7 +66,7 @@ beforeEach(() => {
         return poll && typeof poll === 'object' && 'code' in poll
           ? response(poll, 400)
           : response(poll);
-      if (path.endsWith('/verify-code'))
+      if (path.endsWith('/verify-code') || path.endsWith('/email/verify'))
         return response({ status: 'USED', accessToken: 'test-access' });
       if (path.endsWith('/me')) return response({ id: 'test-user', onboardingCompleted: meDone });
       return response({ ok: true });
@@ -157,6 +161,38 @@ describe('Telegram login (API mocks only in this test)', () => {
     await mount();
     expect(replace).toHaveBeenCalledWith('/cabinet/profile');
     expect(sessionStorage.length).toBe(0);
+  });
+  describe.each(['telegram', 'backup', 'admin'] as const)('%s return URL', (method) => {
+    it.each([
+      ['/\\example.org', '/cabinet'],
+      ['/cabinet/profile?tab=contacts#email', '/cabinet/profile?tab=contacts#email'],
+    ])('safely completes login with next=%j', async (next, expected) => {
+      location.next = next;
+      poll =
+        method === 'admin'
+          ? { status: 'CONFIRMED', nextStep: 'ADMIN_EMAIL_CODE' }
+          : method === 'telegram'
+            ? { status: 'USED', accessToken: 'test-access' }
+            : { status: LoginTokenStatus.PENDING };
+      await mount();
+      if (method === 'admin') {
+        fireEvent.change(screen.getByLabelText('Одноразовый код'), { target: { value: '123456' } });
+        fireEvent.submit(screen.getByRole('button', { name: 'Подтвердить вход' }).closest('form')!);
+        await flush();
+      } else if (method === 'backup') {
+        fireEvent.click(screen.getByRole('button', { name: 'Нет доступа к Telegram?' }));
+        fireEvent.change(screen.getByLabelText('E-mail'), {
+          target: { value: 'test@example.org' },
+        });
+        const form = screen.getByRole('button', { name: 'Получить код' }).closest('form')!;
+        fireEvent.submit(form);
+        await flush();
+        fireEvent.change(screen.getByLabelText('Код из письма'), { target: { value: '123456' } });
+        fireEvent.submit(form);
+        await flush();
+      }
+      expect(replace).toHaveBeenCalledWith(expected);
+    });
   });
   it('routes a new user to onboarding', async () => {
     meDone = false;
