@@ -48,6 +48,7 @@ export function Calendar({
   ].sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt) || a.id.localeCompare(b.id));
   const error =
     query.isPending && initialError ? new Error(initialError) : loading ? null : query.error;
+  const waitingForFirstPage = pages.length === 0 && (loading || query.isPending);
   return (
     <section aria-label="События календаря" aria-busy={!loading && query.isFetching}>
       <div className="legend">
@@ -59,8 +60,8 @@ export function Calendar({
         ))}
       </div>
       <ErrorNotice error={error} />
-      {!items.length && !error && (loading || query.isPending) && <Loading />}
-      {!items.length && !loading && !query.isPending && !error && (
+      {!items.length && !error && waitingForFirstPage && <Loading />}
+      {!items.length && !waitingForFirstPage && !error && (
         <Empty>Ближайших событий пока нет.</Empty>
       )}
       {items.map((item) => (

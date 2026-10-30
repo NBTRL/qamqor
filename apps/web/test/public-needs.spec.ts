@@ -51,3 +51,21 @@ test.describe('server-rendered public needs', () => {
     ).toBeVisible();
   });
 });
+
+test.describe('public needs without JavaScript', () => {
+  test.use({ javaScriptEnabled: false });
+  test('the first 20 needs and contact link remain available without hydration', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 320, height: 900 });
+    await page.goto('/uchrezhdeniya/test-place#needs');
+    await expect(page.getByRole('heading', { name: 'Нужда 20', exact: true })).toBeVisible();
+    await expect(page.locator('#needs li')).toHaveCount(20);
+    await expect(
+      page.getByRole('link', { name: 'Связаться с Клубом по поводу помощи' }),
+    ).toBeVisible();
+    await page.getByRole('link', { name: 'Связаться с Клубом по поводу помощи' }).click();
+    await expect(page).toHaveURL(/\/kontakty$/);
+    await expect(page.getByRole('heading', { name: 'Контакты', exact: true })).toBeVisible();
+  });
+});

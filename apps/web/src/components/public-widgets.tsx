@@ -2,7 +2,7 @@
 import Image from 'next/image';
 import { PlaceNeedsPreview } from './place-needs';
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -16,7 +16,13 @@ import { api, result, type Model } from '@/lib/api/client';
 import { date } from '@/lib/format';
 import { useAuth } from './providers';
 import { Button, ButtonLink, Modal, RichText, Empty, ErrorNotice, Field, Loading } from './ui';
+const subscribeToHydration = () => () => {};
 export function ContactForm() {
+  const interactive = useSyncExternalStore(
+    subscribeToHydration,
+    () => true,
+    () => false,
+  );
   const form = useForm<ContactRequestInput>({
     resolver: zodResolver(contactRequestSchema),
     defaultValues: { name: '', contact: '', message: '', consentVersion: CONSENT_VERSION },
@@ -32,32 +38,38 @@ export function ContactForm() {
       </p>
     );
   return (
-    <form className="form" onSubmit={form.handleSubmit((value) => mutation.mutate(value))}>
-      {(['name', 'contact', 'message'] as const).map((name) => (
-        <Field
-          key={name}
-          label={
-            { name: 'Ваше имя', contact: 'E-mail или телефон для ответа', message: 'Сообщение' }[
-              name
-            ]
-          }
-          error={form.formState.errors[name]?.message}
-        >
-          {name === 'message' ? (
-            <textarea {...form.register(name)} />
-          ) : (
-            <input {...form.register(name)} autoComplete={name === 'name' ? 'name' : undefined} />
-          )}
-        </Field>
-      ))}
-      <label className="check">
-        <input type="checkbox" required {...form.register('personalDataConsent')} />
-        <span>
-          Согласен на <Link href="/policy">обработку персональных данных</Link>.
-        </span>
-      </label>
-      <ErrorNotice error={mutation.error} />
-      <Button disabled={mutation.isPending}>Отправить сообщение</Button>
+    <form
+      className="form"
+      aria-busy={!interactive}
+      onSubmit={form.handleSubmit((value) => mutation.mutate(value))}
+    >
+      <fieldset className="form__body" disabled={!interactive}>
+        {(['name', 'contact', 'message'] as const).map((name) => (
+          <Field
+            key={name}
+            label={
+              { name: 'Ваше имя', contact: 'E-mail или телефон для ответа', message: 'Сообщение' }[
+                name
+              ]
+            }
+            error={form.formState.errors[name]?.message}
+          >
+            {name === 'message' ? (
+              <textarea {...form.register(name)} />
+            ) : (
+              <input {...form.register(name)} autoComplete={name === 'name' ? 'name' : undefined} />
+            )}
+          </Field>
+        ))}
+        <label className="check">
+          <input type="checkbox" required {...form.register('personalDataConsent')} />
+          <span>
+            Согласен на <Link href="/policy">обработку персональных данных</Link>.
+          </span>
+        </label>
+        <ErrorNotice error={mutation.error} />
+        <Button disabled={mutation.isPending}>Отправить сообщение</Button>
+      </fieldset>
     </form>
   );
 }
@@ -92,13 +104,18 @@ export function NewsCard({
         </time>
         <h3>
           {modal ? (
-            <button
-              className="news-card__button"
-              aria-haspopup="dialog"
-              onClick={() => setOpen(true)}
-            >
-              {item.title}
-            </button>
+            <>
+              <button
+                className="news-card__button"
+                aria-haspopup="dialog"
+                onClick={() => setOpen(true)}
+              >
+                {item.title}
+              </button>
+              <noscript>
+                <Link href={`/novosti/${item.slug}`}>{item.title}</Link>
+              </noscript>
+            </>
           ) : (
             <Link href={`/novosti/${item.slug}`}>{item.title}</Link>
           )}

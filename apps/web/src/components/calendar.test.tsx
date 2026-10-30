@@ -40,6 +40,21 @@ beforeEach(() => {
   auth.loading = false;
 });
 describe('Calendar pagination', () => {
+  it('shows a server-confirmed empty calendar before identity is resolved', () => {
+    auth.loading = true;
+    const fetch = vi.fn();
+    vi.stubGlobal('fetch', fetch);
+    mount(data(0));
+    expect(screen.getByText('Ближайших событий пока нет.')).toBeInTheDocument();
+    expect(screen.queryByText('Загрузка…')).not.toBeInTheDocument();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it('waits for calendar data when neither a server page nor an error is available', () => {
+    auth.loading = true;
+    mount();
+    expect(screen.getByText('Загрузка…')).toBeInTheDocument();
+    expect(screen.queryByText('Ближайших событий пока нет.')).not.toBeInTheDocument();
+  });
   it.each([0, 100, 101, 205])('makes every event available for a list of %i', async (total) => {
     const requests: URL[] = [];
     vi.stubGlobal(
