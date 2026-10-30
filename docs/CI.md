@@ -15,7 +15,9 @@ Workflow `Project checks` запускается для pull request, push в ma
 
 ## Backend integration
 
-После успешной quality-проверки Docker Compose поднимает PostgreSQL, Redis, MinIO и Mailpit. MinIO собирается из официального исходного релиза существующим Dockerfile. `minio-init` создаёт закрытый тестовый бакет. `pnpm test:e2e` создаёт отдельную БД `club_test_*`, применяет миграции, выполняет весь backend E2E и удаляет временную БД. В конце Docker volumes удаляются на этом одноразовом GitHub runner.
+Backend-проверка выполняется параллельно с quality на отдельном runner; успешный итог workflow требует прохождения обоих заданий. Docker Compose поднимает PostgreSQL, Redis, MinIO и Mailpit. MinIO собирается из официального исходного релиза существующим Dockerfile. `minio-init` создаёт закрытый тестовый бакет. `pnpm test:e2e` создаёт отдельную БД `club_test_*`, применяет миграции, выполняет весь backend E2E и удаляет временную БД. В конце Docker volumes удаляются на этом одноразовом GitHub runner.
+
+После E2E собирается `Dockerfile.api`, общий для HTTP API и daemon. `scripts/check-runtime.mjs` запускается внутри образа с `--network none`: проверяет замкнутость символических ссылок, наличие worker/HTTP entrypoint и Prisma-миграций, выполнение Prisma CLI/schema engine, импорт shared и ответ настоящего Nest HTTP-сервера на health. Smoke test использует отдельную тестовую конфигурацию и offline-провайдеры, без реальных Telegram/SMTP/БД. Так CI обнаружит зависимость runtime-пакета от файлов исходного workspace.
 
 Отдельный тест намеренно создаёт PostgreSQL deadlock между двумя транзакциями и проверяет, что механизм повторов распознаёт ошибку Prisma/адаптера и позволяет обеим операциям завершиться.
 

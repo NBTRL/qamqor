@@ -19,7 +19,8 @@
   "daemons": {
     "worker": {
       "root": ".",
-      "entrypoint": "Dockerfile.worker",
+      "entrypoint": "Dockerfile.api",
+      "command": ["node", "dist/worker.js"],
       "instances": { "fra1": 1 },
       "resources": { "requests": { "memory": "1Gi" } },
       "terminationGracePeriodSeconds": 50
