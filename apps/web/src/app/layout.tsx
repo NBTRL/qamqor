@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Fragment } from 'react';
 import { cookies } from 'next/headers';
 import { REFRESH_COOKIE_NAME } from '@club/shared';
 import { Providers } from '@/components/providers';
@@ -47,7 +48,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               форм, записи и загрузки следующих страниц включите JavaScript в настройках браузера.
             </p>
           </noscript>
-          <main id="main">{children}</main>
+          <main id="main">
+            {/* The key gives pending route data its own fiber instead of retrying <main>. */}
+            <Fragment key="route-content">{children}</Fragment>
+          </main>
           <Footer />
         </Providers>
       </body>
