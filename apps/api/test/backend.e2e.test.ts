@@ -1570,7 +1570,12 @@ describe('Авторизация Telegram', () => {
   it('не меняет сессию и не расходует email-код через стороннюю HTML-форму или без Origin', async () => {
     const email = `origin${telegramId()}@example.test`;
     const user = await prisma.user.create({
-      data: { fullName: 'Тест источника входа', email, emailVerifiedAt: new Date() },
+      data: {
+        telegramId: BigInt(telegramId()),
+        fullName: 'Тест источника входа',
+        email,
+        emailVerifiedAt: new Date(),
+      },
     });
     expect((await req('post', '/auth/email/login-code').send({ email })).status).toBe(200);
     const code = /\b\d{6}\b/.exec(mails.at(-1)!.text)![0];
