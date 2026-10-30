@@ -15,7 +15,8 @@ RUN pnpm --filter @club/api... install --frozen-lockfile
 COPY apps/api ./apps/api
 RUN pnpm --filter @club/shared build \
     && pnpm --filter @club/api build \
-    && pnpm --filter @club/api deploy --prod --prefer-offline --ignore-scripts /runtime
+    && pnpm --filter @club/api deploy --prod --prefer-offline --ignore-scripts /runtime \
+    && pnpm --dir /runtime rebuild @prisma/engines
 
 FROM node:24-bookworm-slim AS runtime
 RUN apt-get update && apt-get install --no-install-recommends --yes openssl ca-certificates && rm -rf /var/lib/apt/lists/*

@@ -57,8 +57,12 @@ const prisma = spawnSync(
     timeout: 20000,
   },
 );
-assert.equal(prisma.status, 0, 'Packaged Prisma CLI and schema engine must execute offline.');
-assert.match(prisma.stdout, /Schema Engine/);
+assert.equal(
+  prisma.status,
+  0,
+  `Packaged Prisma CLI and schema engine must execute offline. ${prisma.stderr?.slice(-2000) ?? ''}`,
+);
+assert.match(prisma.stdout, /Schema Engine\s*:\s*schema-engine-cli\s+\S+/);
 require('reflect-metadata');
 const { NestFactory } = require('@nestjs/core');
 const { AppModule } = await import(pathToFileURL(join(root, 'dist/app.module.js')).href);
