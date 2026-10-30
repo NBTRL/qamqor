@@ -7,8 +7,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { onboardingSchema, CONSENT_VERSION, type OnboardingInput } from '@club/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, result } from '@/lib/api/client';
+import { safeReturn } from '@/lib/format';
 import { Button, ErrorNotice, Field } from './ui';
-export function OnboardingForm() {
+export function OnboardingForm({ next = null }: { next?: string | null }) {
   const router = useRouter();
   const client = useQueryClient();
   const [consent, setConsent] = useState(false);
@@ -20,7 +21,7 @@ export function OnboardingForm() {
     mutationFn: (body: OnboardingInput) => result(api.POST('/api/v1/me/onboarding', { body })),
     onSuccess: (me) => {
       client.setQueryData(['me'], me);
-      router.replace('/cabinet');
+      router.replace(safeReturn(next));
     },
   });
   return (

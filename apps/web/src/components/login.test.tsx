@@ -194,10 +194,10 @@ describe('Telegram login (API mocks only in this test)', () => {
       expect(replace).toHaveBeenCalledWith(expected);
     });
   });
-  it('routes a new user to onboarding', async () => {
+  it('keeps the selected destination while routing a new user to onboarding', async () => {
     meDone = false;
     poll = { status: 'USED', accessToken: 'test-access' };
     await mount();
-    expect(replace).toHaveBeenCalledWith('/onboarding');
+    expect(replace).toHaveBeenCalledWith('/onboarding?next=%2Fcabinet%2Fprofile');
   });
 });

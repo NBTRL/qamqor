@@ -15,7 +15,7 @@ import {
   loginTokenStatusLabels,
 } from '@club/shared';
 import { api, ApiError, result, setAccessToken, type Model } from '@/lib/api/client';
-import { safeReturn } from '@/lib/format';
+import { onboardingPath, safeReturn } from '@/lib/format';
 import { Button, ErrorNotice, Field } from './ui';
 const codeSchema = z.object({
   code: z.string().regex(/^\d{6}$/, 'Введите шестизначный код.'),
@@ -43,10 +43,14 @@ export function Login() {
     try {
       const me = await result(api.GET('/api/v1/me'));
       client.setQueryData(['me'], me);
-      router.replace(me.onboardingCompleted ? safeReturn(params.get('next')) : '/onboarding');
+      router.replace(
+        me.onboardingCompleted
+          ? safeReturn(params.get('next'))
+          : onboardingPath(params.get('next')),
+      );
     } catch (cause) {
       if (cause instanceof ApiError && cause.code === ErrorCode.ONBOARDING_REQUIRED)
-        router.replace('/onboarding');
+        router.replace(onboardingPath(params.get('next')));
       else setError(cause);
     }
   };
