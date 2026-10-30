@@ -92,7 +92,15 @@ jobs:
         run: |
           docker compose up --detach --build --wait postgres redis minio mailpit
           docker compose run --rm minio-init
+      - name: Build web app for real backend browser checks
+        run: pnpm --filter @club/shared build && pnpm --filter @club/web build
+        env:
+          PUBLIC_API_URL: http://127.0.0.1:4000
+      - name: Install browser for real backend checks
+        run: pnpm --filter @club/web exec playwright install --with-deps chromium
       - run: pnpm test:e2e
+        env:
+          TEST_BROWSER: 'true'
       - name: Build standalone backend image
         run: docker build --file Dockerfile.api --tag qamqor-runtime:ci .
       - name: Check packaged runtime without external network

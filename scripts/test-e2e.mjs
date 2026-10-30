@@ -47,6 +47,8 @@ try {
   await pnpm(['--filter', '@club/api', 'db:deploy']);
   await pnpm(['--filter', '@club/api', 'build']);
   await pnpm(['exec', 'vitest', 'run', '--config', 'apps/api/vitest.e2e.config.ts']);
+  if (process.env.TEST_BROWSER === 'true')
+    await pnpm(['exec', 'node', 'scripts/check-user-flow.mjs']);
 } catch (error) {
   console.error(error instanceof Error ? error.message : 'E2E не завершены.');
   process.exitCode = 1;
