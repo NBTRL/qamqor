@@ -345,52 +345,69 @@ export function PlaceNeeds({ id }: { id: string }) {
   );
 }
 function NeedsForm({ id, initial }: { id: string; initial: Model<'NeedResponseDto'>[] }) {
+  const cache = useQueryClient();
+  const values = (items: Model<'NeedResponseDto'>[]) => ({
+    items: items.map(({ id, title, description, isActive }) => ({
+      id,
+      title,
+      description,
+      isActive,
+    })),
+  });
   const form = useForm<Model<'NeedsWriteDto'>>({
     resolver: zodResolver(schemaFor('NeedsWriteDto')),
-    defaultValues: {
-      items: initial.map(({ id, title, description, isActive }) => ({
-        id,
-        title,
-        description,
-        isActive,
-      })),
-    },
+    defaultValues: values(initial),
   });
   const rows = useFieldArray({ control: form.control, name: 'items', keyName: 'fieldKey' });
   const save = useMutation({
     mutationFn: (body: Model<'NeedsWriteDto'>) =>
       result(api.PATCH('/api/v1/curator/places/{id}/needs', { params: { path: { id } }, body })),
+    onSuccess: (data) => {
+      // Retain the assigned IDs so the next save updates newly created rows.
+      form.reset(values(data.items));
+      cache.setQueryData(['needs', id], data);
+      void cache.invalidateQueries({ queryKey: ['public-needs', id] });
+    },
   });
   return (
-    <form className="form" onSubmit={form.handleSubmit((body) => save.mutate(body))}>
-      {rows.fields.map((row, index) => (
-        <fieldset key={row.fieldKey}>
-          <legend>Потребность {index + 1}</legend>
-          <Field label="Название" error={form.formState.errors.items?.[index]?.title?.message}>
-            <input {...form.register(`items.${index}.title`)} />
-          </Field>
-          <Field label="Описание">
-            <textarea {...form.register(`items.${index}.description`)} />
-          </Field>
-          <label className="check">
-            <input type="checkbox" {...form.register(`items.${index}.isActive`)} />
-            Актуально
-          </label>
-          {!row.id && (
-            <Button variant="secondary" type="button" onClick={() => rows.remove(index)}>
-              Убрать
-            </Button>
-          )}
-        </fieldset>
-      ))}
-      <Button
-        type="button"
-        variant="secondary"
-        disabled={rows.fields.length >= 100}
-        onClick={() => rows.append({ title: '', description: '', isActive: true })}
-      >
-        Добавить потребность
-      </Button>
+    <form
+      className="form"
+      aria-busy={save.isPending}
+      onSubmit={form.handleSubmit((body) => {
+        if (!save.isPending) save.mutate(body);
+      })}
+    >
+      {/* Block in-flight edits before replacing the draft with the saved rows and IDs. */}
+      <fieldset className="form__body" disabled={save.isPending}>
+        {rows.fields.map((row, index) => (
+          <fieldset key={row.fieldKey}>
+            <legend>Потребность {index + 1}</legend>
+            <Field label="Название" error={form.formState.errors.items?.[index]?.title?.message}>
+              <input {...form.register(`items.${index}.title`)} />
+            </Field>
+            <Field label="Описание">
+              <textarea {...form.register(`items.${index}.description`)} />
+            </Field>
+            <label className="check">
+              <input type="checkbox" {...form.register(`items.${index}.isActive`)} />
+              Актуально
+            </label>
+            {!row.id && (
+              <Button variant="secondary" type="button" onClick={() => rows.remove(index)}>
+                Убрать
+              </Button>
+            )}
+          </fieldset>
+        ))}
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={rows.fields.length >= 100}
+          onClick={() => rows.append({ title: '', description: '', isActive: true })}
+        >
+          Добавить потребность
+        </Button>
+      </fieldset>
       <ErrorNotice error={save.error} />
       <Button disabled={save.isPending}>Сохранить нужды</Button>
       {save.isSuccess && <p role="status">Нужды сохранены.</p>}

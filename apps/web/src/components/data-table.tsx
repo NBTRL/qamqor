@@ -24,6 +24,10 @@ export function DataTable<T>({
     queryKey: ['table', name, page, search, revision],
     queryFn: () => load({ page, limit: 20, ...(search ? { search } : {}) }),
   });
+  // Deleting the last row can remove the current page. Adjust during render so
+  // the next query targets an existing page without an intermediate empty view.
+  const lastPage = query.data ? Math.max(1, Math.ceil(query.data.total / 20)) : page;
+  if (query.isSuccess && page > lastPage) setPage(lastPage);
   return (
     <>
       <form
@@ -49,48 +53,52 @@ export function DataTable<T>({
       <ErrorNotice error={query.error} />
       {query.isLoading ? (
         <Loading />
-      ) : !query.data?.items.length ? (
+      ) : query.data && !query.data.items.length ? (
         <Empty />
-      ) : (
-        <>
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  {columns.map((col, i) => (
-                    <th scope="col" key={i}>
-                      {col.title}
-                    </th>
+      ) : query.data ? (
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                {columns.map((col, i) => (
+                  <th scope="col" key={i}>
+                    {col.title}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {query.data.items.map((row, i) => (
+                <tr key={typeof row === 'object' && row && 'id' in row ? String(row.id) : i}>
+                  {columns.map((col, j) => (
+                    <td key={j}>{col.cell(row)}</td>
                   ))}
                 </tr>
-              </thead>
-              <tbody>
-                {query.data.items.map((row, i) => (
-                  <tr key={typeof row === 'object' && row && 'id' in row ? String(row.id) : i}>
-                    {columns.map((col, j) => (
-                      <td key={j}>{col.cell(row)}</td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="pagination">
-            <Button variant="secondary" disabled={page <= 1} onClick={() => setPage(page - 1)}>
-              Назад
-            </Button>
-            <span>
-              Страница {page} · всего {query.data.total}
-            </span>
-            <Button
-              variant="secondary"
-              disabled={page * 20 >= query.data.total}
-              onClick={() => setPage(page + 1)}
-            >
-              Вперёд
-            </Button>
-          </div>
-        </>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+      {query.data && (
+        <div className="pagination">
+          <Button
+            variant="secondary"
+            disabled={page <= 1}
+            onClick={() => setPage((current) => current - 1)}
+          >
+            Назад
+          </Button>
+          <span>
+            Страница {page} · всего {query.data.total}
+          </span>
+          <Button
+            variant="secondary"
+            disabled={page * 20 >= query.data.total}
+            onClick={() => setPage((current) => current + 1)}
+          >
+            Вперёд
+          </Button>
+        </div>
       )}
     </>
   );

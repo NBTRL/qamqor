@@ -130,7 +130,8 @@ apps/api/src/
   prisma/             клиент PostgreSQL
   scripts/            seed, Telegram CLI, offline OpenAPI
 apps/api/prisma/      схема и миграции
-apps/api/Dockerfile   образ API с healthcheck
+apps/api/Dockerfile   локальный образ API с healthcheck
+Dockerfile.api        образ API и daemon для Vercel
 apps/web/src/         публичные SSR-страницы, кабинет, куратор, админка, API-клиент
 packages/shared/src/  enums, labels, transitions, constants, permissions,
                       errors, messages, schemas, server
@@ -145,7 +146,9 @@ scripts/              запуск, окружение, отдельная те�
 docker build -f apps/api/Dockerfile -t club-api:local .
 ```
 
-Образ запускает node dist/main.js от пользователя node на 4000, NODE_ENV=production; содержит healthcheck и SIGTERM/graceful shutdown. Секреты передавайте окружением при запуске, .env не копируется в образ. Перед стартом выполняйте миграции отдельным deployment-шагом (pnpm db:deploy из сборочного окружения). Runtime-образ содержит только production-зависимости, собранный API/shared и миграции, без CLI мигратора.
+Локальный образ из `apps/api/Dockerfile` запускает `node dist/main.js` от пользователя `node` на 4000, `NODE_ENV=production`; содержит liveness healthcheck и SIGTERM/graceful shutdown. Секреты передавайте окружением при запуске, `.env` не копируется в образ. Перед стартом применяйте миграции отдельным шагом (`pnpm db:deploy` из сборочного окружения). Runtime содержит production-зависимости, включая Prisma Client и CLI, собранный API/shared и миграции.
+
+Vercel использует корневой `Dockerfile.api`. Он дополнительно устанавливает системные библиотеки в runtime и упаковывает нативный Prisma schema engine через `rebuild @prisma/engines`. HTTP entrypoint `node dist/scripts/start-vercel.js` при `VERCEL_ENV=production|preview` применяет миграции перед запуском API; при ошибке сервер не запускается. Фоновые задания выполняет отдельный daemon с командой `node dist/worker.js`. Его entrypoint миграции не применяет. Порядок запуска и проверка этого образа описаны в [docs/VERCEL.md](docs/VERCEL.md).
 
 В контейнере localhost означает сам контейнер: DATABASE_URL, REDIS_URL, SMTP_HOST и S3_ENDPOINT должны указывать на доступные из него сервисы. S3_ENDPOINT для presigned upload должен быть доступен одновременно API и браузеру. В production используйте отдельного S3-пользователя и приватный бакет. Прокси должен перезаписывать X-Forwarded-For и не записывать чувствительные query/header/body в журналы.
 
@@ -166,7 +169,7 @@ docker build -f apps/api/Dockerfile -t club-api:local .
 - `/curator`: свои поездки/учреждения, участники, явка, отчеты с фото, нужды.
 - `/admin`: пользователи/кураторы, анкеты, ДОД, регионы/учреждения, контент с TipTap, мероприятия, обращения, ручной учет пожертвований, счетчики, уведомления, аудит.
 
-Данные новостей/альбомов/мероприятий не подменяются вымышленными записями. Пока администратор их не добавил, показываются пустые состояния. Реквизиты пожертвования и политика персональных данных — явные заглушки; платежного функционала нет. Иллюстрации локальные SVG, шрифт системный, CDN не используется.
+Публичные списки читают сохранённые данные API. Учебная миграция добавляет вымышленные учреждения, нужды, новости и события; администратор может их редактировать. В разделах без опубликованных записей показываются пустые состояния. Страницы `/policy`, `/kontakty` и `/donation` управляются через CMS и содержат учебные материалы из миграции `20261030020000_educational_public_pages`. Если запись удалена или пуста, показывается краткое учебное описание; ошибка API отображается отдельно. Реальные пожертвования не принимаются, банковские реквизиты и платёжная форма отсутствуют. Подробности — в [docs/PUBLIC_PAGES.md](docs/PUBLIC_PAGES.md). Иллюстрации локальные SVG, шрифт системный, CDN не используется.
 
 `pnpm gen:client` генерирует `schema.d.ts`, привязки CRUD `resources.ts` и метаданные форм `form-definitions.json`. Анкета всегда валидируется общей `questionnaireSchema`; метаданные OpenAPI используются для остальных административных форм. Клиентские роли не заменяют серверную проверку.
 

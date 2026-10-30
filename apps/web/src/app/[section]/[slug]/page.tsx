@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import { z } from 'zod';
 import { placeTypeLabels, PlaceType } from '@club/shared';
 import { publicDetail, sections } from '@/lib/public-content';
+import { ApiError } from '@/lib/api/client';
 import { RichText } from '@/components/ui';
 import { PrivatePlace } from '@/components/public-widgets';
 import { date } from '@/lib/format';
@@ -22,14 +23,16 @@ export async function generateMetadata({
   const { section, slug } = await params;
   try {
     const item = await publicDetail(section, slug);
-    const title = item && ('title' in item ? item.title : 'name' in item ? item.name : 'Материал');
+    if (!item) return { title: 'Материал не найден' };
+    const title = 'title' in item ? item.title : 'name' in item ? item.name : 'Материал';
     return {
       title,
       description: `${title}. ${sections[section as keyof typeof sections] ?? 'Материалы Клуба'}.`,
       openGraph: { title, url: `/${section}/${slug}` },
     };
-  } catch {
-    return { title: 'Материал не найден' };
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return { title: 'Материал не найден' };
+    throw error;
   }
 }
 export default async function Page({
@@ -41,8 +44,9 @@ export default async function Page({
   let item;
   try {
     item = await publicDetail(section, slug);
-  } catch {
-    notFound();
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) notFound();
+    throw error;
   }
   if (!item) notFound();
   return (

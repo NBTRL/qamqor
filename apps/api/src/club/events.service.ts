@@ -340,33 +340,40 @@ export class OpenDaysService {
     });
   }
   async attendance(actor: Actor, registrationId: string, attended: boolean) {
+    const registration = await this.prisma.openDayRegistration.findUniqueOrThrow({
+      where: { id: registrationId },
+    });
+    return this.markAttendance(actor, registration.sessionId, registration.userId, attended);
+  }
+  async markAttendance(actor: Actor, sessionId: string, userId: string, attended: boolean) {
     return this.prisma.$transaction(async (tx) => {
-      const initial = await tx.openDayRegistration.findUniqueOrThrow({
-        where: { id: registrationId },
+      // Match registration/anonymization lock order; re-read eligibility after both locks.
+      await tx.$queryRaw`SELECT "id" FROM "users" WHERE "id"=${userId}::uuid FOR NO KEY UPDATE`;
+      await tx.$queryRaw`SELECT "id" FROM "open_day_sessions" WHERE "id"=${sessionId}::uuid FOR UPDATE`;
+      const user = await tx.user.findUniqueOrThrow({ where: { id: userId } });
+      const session = await tx.openDaySession.findUniqueOrThrow({ where: { id: sessionId } });
+      const current = await tx.openDayRegistration.findUnique({
+        where: { sessionId_userId: { sessionId, userId } },
       });
-      await tx.$queryRaw`SELECT "id" FROM "open_day_sessions" WHERE "id"=${initial.sessionId}::uuid FOR UPDATE`;
-      const current = await tx.openDayRegistration.findUniqueOrThrow({
-        where: { id: registrationId },
-        include: { session: true, user: true },
-      });
-      if (
-        attended &&
-        current.session.startsAt > new Date() &&
-        (current.user.anonymizedAt || current.user.isBlocked)
-      )
+      const future = session.startsAt > new Date();
+      if (future && (attended || !current) && (user.anonymizedAt || user.isBlocked))
         throw new ApiException(ErrorCode.FORBIDDEN);
-      const row = await tx.openDayRegistration.update({
-        where: { id: registrationId },
-        data: { attended, ...(attended ? { cancelledAt: null } : {}) },
+      // Historical attendance is authoritative; future creation/restoration still reserves a place.
+      if (
+        future &&
+        (!current || (attended && current.cancelledAt !== null)) &&
+        (await tx.openDayRegistration.count({ where: { sessionId, cancelledAt: null } })) >=
+          session.capacity
+      )
+        throw new ApiException(ErrorCode.OPEN_DAY_FULL);
+      const row = await tx.openDayRegistration.upsert({
+        where: { sessionId_userId: { sessionId, userId } },
+        create: { sessionId, userId, attended },
+        update: { attended, ...(attended ? { cancelledAt: null } : {}) },
       });
-      await this.audit.record(
-        tx,
-        actor.id,
-        'ATTENDANCE_MARKED',
-        'OpenDayRegistration',
-        registrationId,
-        { attended },
-      );
+      await this.audit.record(tx, actor.id, 'ATTENDANCE_MARKED', 'OpenDayRegistration', row.id, {
+        attended,
+      });
       return row;
     });
   }

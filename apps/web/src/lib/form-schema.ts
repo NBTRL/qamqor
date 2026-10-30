@@ -81,8 +81,17 @@ function valueSchema(raw: Definition): z.ZodType {
 export function schemaFor<N extends keyof components['schemas'] & keyof typeof definitions>(
   name: N,
 ): z.ZodType<components['schemas'][N], components['schemas'][N]> {
-  return valueSchema(definition(name)) as z.ZodType<
-    components['schemas'][N],
-    components['schemas'][N]
-  >;
+  let schema = valueSchema(definition(name));
+  if (name === 'EventWriteDto' || name === 'EventPatchDto')
+    schema = schema.refine(
+      (value) => {
+        const event = value as Record<string, unknown>;
+        if (typeof event.startsAt !== 'string' || typeof event.endsAt !== 'string') return true;
+        const startsAt = Date.parse(event.startsAt),
+          endsAt = Date.parse(event.endsAt);
+        return !Number.isFinite(startsAt) || !Number.isFinite(endsAt) || endsAt > startsAt;
+      },
+      { path: ['endsAt'], message: 'Время окончания должно быть позже начала.' },
+    );
+  return schema as z.ZodType<components['schemas'][N], components['schemas'][N]>;
 }

@@ -1,6 +1,7 @@
 import { NOTIFICATION_TYPES } from '@club/shared';
 import { test, expect, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
+import { setTimeout as delay } from 'node:timers/promises';
 test.beforeEach(async ({ page }) => {
   await page
     .context()
@@ -116,6 +117,35 @@ async function mockApi(page: Page, role = 'ADMIN') {
       };
     else body = { items: [], total: 0, page: 1, limit: 20 };
     await route.fulfill({ status: 200, json: body });
+  });
+}
+for (const role of ['CANDIDATE', 'VOLUNTEER'] as const) {
+  test(`fast ${role} identity keeps delayed protected route HTML hydratable`, async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    page.on('console', (entry) => {
+      if (entry.type() === 'error' && /hydrat|React error #418/i.test(entry.text()))
+        errors.push(entry.text());
+    });
+    await page.setViewportSize({ width: 320, height: 900 });
+    await mockApi(page, role);
+    await page.route('**/api/v1/me', (route) =>
+      route.fulfill({ json: { ...me, role, curatorPlaceIds: [] } }),
+    );
+    // Keep identity responses immediate while delaying the route code. This
+    // exercises hydration of server children after their surrounding providers.
+    await page.route('**/_next/static/chunks/app/curator/**', async (route) => {
+      await delay(75);
+      await route.continue();
+    });
+    for (let pass = 0; pass < 4; pass++) {
+      for (const path of ['/admin', '/curator', '/curator']) {
+        await page.goto(path);
+        await expect(page.getByRole('heading', { name: 'Нет доступа', exact: true })).toBeVisible();
+        await expect(page.getByRole('navigation', { name: 'Личный раздел' })).toHaveCount(0);
+        expect(errors).toEqual([]);
+      }
+    }
   });
 }
 test('CMS news form sends TipTap HTML and shared status (isolated API mocks)', async ({ page }) => {

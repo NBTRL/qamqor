@@ -1567,6 +1567,44 @@ describe('Авторизация Telegram', () => {
       (await req('post', '/auth/email/verify').send({ email: adminEmail, code: '123456' })).status,
     ).toBe(401);
   });
+  it('не меняет сессию и не расходует email-код через стороннюю HTML-форму или без Origin', async () => {
+    const email = `origin${telegramId()}@example.test`;
+    const user = await prisma.user.create({
+      data: {
+        telegramId: BigInt(telegramId()),
+        fullName: 'Тест источника входа',
+        email,
+        emailVerifiedAt: new Date(),
+      },
+    });
+    expect((await req('post', '/auth/email/login-code').send({ email })).status).toBe(200);
+    const code = /\b\d{6}\b/.exec(mails.at(-1)!.text)![0];
+    for (const attempt of [
+      { origin: 'https://untrusted.example', type: 'json' },
+      { origin: undefined, type: 'json' },
+      { origin: 'null', type: 'form' },
+      { origin: 'https://untrusted.example', type: 'form' },
+    ]) {
+      const call = api()
+        .post('/api/v1/auth/email/verify')
+        .set('User-Agent', agent)
+        .set('Cookie', 'club_refresh=synthetic-existing-session')
+        .type(attempt.type);
+      if (attempt.origin !== undefined) call.set('Origin', attempt.origin);
+      const denied = await call.send({ email, code });
+      expect(denied.status).toBe(403);
+      expect(denied.body.code).toBe(ErrorCode.FORBIDDEN);
+      expect(denied.headers['set-cookie']).toBeUndefined();
+    }
+    const pending = await prisma.emailLoginCode.findFirstOrThrow({ where: { userId: user.id } });
+    expect(pending.usedAt).toBeNull();
+    expect(pending.attempts).toBe(0);
+    expect(await prisma.refreshToken.count({ where: { userId: user.id } })).toBe(0);
+    const accepted = await req('post', '/auth/email/verify').send({ email, code });
+    expect(accepted.status).toBe(200);
+    expect(accepted.body.accessToken).toBeTypeOf('string');
+    expect(rawCookie(accepted, 'club_refresh')).toBeTruthy();
+  });
   it('анонимизирует аккаунт, отзывает сессии и не объединяет повторный вход с историей', async () => {
     const user = await loginUser();
     const before = await prisma.user.findUniqueOrThrow({ where: { telegramId: BigInt(user.id) } });

@@ -150,6 +150,7 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
+    checkOrigin(req);
     return sessionReply(
       await this.auth.emailLoginVerify(body.email, body.code, requestDevice(req).userAgent),
       res,

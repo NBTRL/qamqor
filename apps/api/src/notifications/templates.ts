@@ -36,13 +36,15 @@ export function notificationMessage(
     OpenDayRegistered: 'Вы записаны на День открытых дверей',
   };
   const link =
-    typeof data.tripId === 'string'
-      ? `/trips/${data.tripId}`
-      : typeof data.eventId === 'string'
-        ? `/events/${data.eventId}`
-        : typeof data.sessionId === 'string'
-          ? '/open-days'
-          : '/profile';
+    type === 'ApplicationStatusChanged'
+      ? '/cabinet/application'
+      : type === 'OpenDayRegistered' || type === 'OpenDayReminder'
+        ? '/cabinet/registrations'
+        : typeof data.tripId === 'string'
+          ? `/trips/${data.tripId}`
+          : typeof data.eventId === 'string'
+            ? `/events/${data.eventId}`
+            : '/cabinet/notifications';
   const status = typeof data.statusLabel === 'string' ? `\nНовый статус: ${data.statusLabel}.` : '';
   return {
     subject: subjects[type],

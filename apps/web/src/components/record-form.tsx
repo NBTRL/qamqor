@@ -242,6 +242,8 @@ export function RecordForm({
                         value={String(control.value ?? '')}
                         onChange={(event) => control.onChange(event.target.value)}
                         required={required}
+                        minLength={field.minLength}
+                        maxLength={field.maxLength}
                       />
                     ) : (
                       <input
@@ -269,6 +271,8 @@ export function RecordForm({
                         }
                         min={field.minimum}
                         max={field.maximum}
+                        minLength={field.minLength}
+                        maxLength={field.maxLength}
                         required={required}
                         step={field.type === 'number' ? 'any' : undefined}
                       />
