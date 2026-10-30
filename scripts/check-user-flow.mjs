@@ -121,10 +121,19 @@ try {
       viewport: { width: 320, height: 900 },
       timezoneId: 'Asia/Almaty',
     });
-    page.on('pageerror', (error) => errors.push(error.message));
+    const navigation = [];
+    page.on('framenavigated', (frame) => {
+      if (frame === page.mainFrame()) {
+        navigation.push(new URL(frame.url()).pathname);
+        if (navigation.length > 3) navigation.shift();
+      }
+    });
+    const recordError = (message) =>
+      errors.push({ path: new URL(page.url()).pathname, navigation: [...navigation], message });
+    page.on('pageerror', (error) => recordError(error.message));
     page.on('console', (message) => {
       if (message.type() === 'error' && /hydrat|React error #418/i.test(message.text()))
-        errors.push(message.text());
+        recordError(message.text());
     });
     await page.route('**/*', (route) => {
       if (new URL(route.request().url()).origin === base) return route.continue();
