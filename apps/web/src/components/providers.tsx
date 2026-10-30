@@ -11,6 +11,7 @@ import {
 } from '@club/shared';
 import { api, clearPrivateStorage, refreshSession, result, type Model } from '@/lib/api/client';
 import { onboardingPath } from '@/lib/format';
+import { useHydrated } from '@/lib/use-hydrated';
 z.config(z.locales.ru());
 type Auth = {
   me: Model<'MeResponseDto'> | null;
@@ -21,8 +22,11 @@ type Auth = {
 const Context = createContext<Auth | null>(null);
 export function useAuth() {
   const auth = useContext(Context);
+  const hydrated = useHydrated();
   if (!auth) throw new Error('AuthProvider required');
-  return auth;
+  // A fast refresh may finish before a nested Suspense boundary hydrates.
+  // Keep that consumer's first render consistent with its server HTML.
+  return hydrated ? auth : { ...auth, me: null, loading: true };
 }
 export function can(me: Auth['me'], action: PermissionAction) {
   return (
