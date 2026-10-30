@@ -10,6 +10,7 @@ import {
   type PermissionAction,
 } from '@club/shared';
 import { api, clearPrivateStorage, refreshSession, result, type Model } from '@/lib/api/client';
+import { onboardingPath } from '@/lib/format';
 z.config(z.locales.ru());
 type Auth = {
   me: Model<'MeResponseDto'> | null;
@@ -118,7 +119,8 @@ export function Protected({
   useEffect(() => {
     if (auth.loading) return;
     if (!auth.me) router.replace(`/login?next=${encodeURIComponent(path)}`);
-    else if (!auth.me.onboardingCompleted && area !== 'onboarding') router.replace('/onboarding');
+    else if (!auth.me.onboardingCompleted && area !== 'onboarding')
+      router.replace(onboardingPath(path));
   }, [auth.loading, auth.me, router, path, area]);
   if (auth.loading)
     return (

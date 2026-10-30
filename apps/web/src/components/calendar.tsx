@@ -72,13 +72,15 @@ export function Calendar({
         >
           <span className="badge">{eventTypeLabels[item.type]}</span>
           <h2>
-            {me && !loading ? (
-              <Link href={`/${item.type === EventType.TRIP ? 'trips' : 'events'}/${item.id}`}>
-                {item.title}
-              </Link>
-            ) : (
-              item.title
-            )}
+            <Link
+              href={
+                me && !loading
+                  ? `/${item.type === EventType.TRIP ? 'trips' : 'events'}/${item.id}`
+                  : `/login?next=${encodeURIComponent(`/${item.type === EventType.TRIP ? 'trips' : 'events'}/${item.id}`)}`
+              }
+            >
+              {item.title}
+            </Link>
           </h2>
           <p>
             {date(item.startsAt)}

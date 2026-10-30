@@ -37,11 +37,19 @@ export function safeReturn(path: string | null): string {
       /[\\\p{Cc}]/u.test(pathname) ||
       pathname === '/api' ||
       pathname.startsWith('/api/') ||
-      pathname.startsWith('/login')
+      pathname.startsWith('/login') ||
+      pathname === '/onboarding' ||
+      pathname.startsWith('/onboarding/')
     )
       return fallback;
     return url.pathname + url.search + url.hash;
   } catch {
     return fallback;
   }
+}
+export function onboardingPath(next: string | null): string {
+  const destination = safeReturn(next);
+  return destination === '/cabinet'
+    ? '/onboarding'
+    : `/onboarding?${new URLSearchParams({ next: destination })}`;
 }

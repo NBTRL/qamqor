@@ -23,6 +23,9 @@ test('guest loads all 205 events in order on a mobile screen', async ({ page }) 
   await expect(
     page.getByRole('region', { name: 'События календаря' }).getByText('Показано 100 из 205'),
   ).toBeVisible();
+  const eventLink = page.getByRole('link', { name: 'Событие 1', exact: true });
+  const destination = await eventLink.getAttribute('href');
+  expect(destination).toMatch(/^\/login\?next=%2Fevents%2F/);
   await page.getByRole('button', { name: 'Загрузить ещё' }).click();
   await expect(
     page.getByRole('region', { name: 'События календаря' }).getByText('Показано 200 из 205'),
@@ -47,6 +50,11 @@ test('guest loads all 205 events in order on a mobile screen', async ({ page }) 
       .size,
   ).toBe(1);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await eventLink.click();
+  await expect(page).toHaveURL(
+    (url) => url.pathname === '/login' && url.search === new URL(destination!, url.origin).search,
+  );
+  await expect(page.getByRole('heading', { name: 'Вход в Клуб', exact: true })).toBeVisible();
 });
 test('a failed next page keeps the first 100 events and can be retried', async ({
   page,
@@ -115,6 +123,10 @@ test.describe('calendar without JavaScript', () => {
     const calendar = page.getByRole('region', { name: 'События календаря' });
     await expect(calendar.getByRole('heading', { name: 'Событие 100', exact: true })).toBeVisible();
     await expect(calendar.getByText('Показано 100 из 205')).toBeVisible();
+    await expect(calendar.getByRole('link', { name: 'Событие 100', exact: true })).toHaveAttribute(
+      'href',
+      /\/login\?next=%2Fevents%2F/,
+    );
     await expect(calendar.getByRole('link', { name: 'Закрытое событие', exact: true })).toHaveCount(
       0,
     );

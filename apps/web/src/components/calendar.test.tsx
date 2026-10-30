@@ -40,6 +40,20 @@ beforeEach(() => {
   auth.loading = false;
 });
 describe('Calendar pagination', () => {
+  it('takes a guest to login with the selected event or trip as the return destination', () => {
+    auth.loading = true;
+    const initial = data(2);
+    initial.items[1]!.type = 'TRIP';
+    mount(initial);
+    expect(screen.getByRole('link', { name: 'Событие 1' })).toHaveAttribute(
+      'href',
+      '/login?next=%2Fevents%2F0001',
+    );
+    expect(screen.getByRole('link', { name: 'Событие 2' })).toHaveAttribute(
+      'href',
+      '/login?next=%2Ftrips%2F0002',
+    );
+  });
   it('shows a server-confirmed empty calendar before identity is resolved', () => {
     auth.loading = true;
     const fetch = vi.fn();
@@ -220,7 +234,10 @@ describe('Calendar pagination', () => {
     view.update();
     await waitFor(() => expect(screen.queryByText('Закрытое событие')).not.toBeInTheDocument());
     expect(screen.getByText('Событие 1')).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Событие 1' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Событие 1' })).toHaveAttribute(
+      'href',
+      '/login?next=%2Fevents%2F0001',
+    );
     expect(requests).toEqual(['/api/v1/calendar', '/api/v1/calendar']);
   });
 });
