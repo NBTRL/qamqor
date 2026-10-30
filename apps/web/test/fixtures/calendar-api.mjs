@@ -17,6 +17,32 @@ createServer(async (req, res) => {
     scenario = { ...scenario, ...JSON.parse(json) };
     body = { ok: true };
   } else if (url.pathname === '/api/v1/health') body = { ok: true };
+  else if (url.pathname === '/api/v1/public/stats')
+    body = {
+      places: 0,
+      curators: 0,
+      events12Months: 0,
+      masterClasses12Months: 0,
+      uniqueParticipants12Months: 0,
+      beneficiaries: 0,
+      trips: 0,
+    };
+  else if (url.pathname === '/api/v1/news')
+    body = {
+      items: [
+        {
+          id: 'test-news',
+          slug: 'test-news',
+          title: 'Новость для публичного чтения',
+          excerpt: 'Анонс опубликованной новости.',
+          publishedAt: '2026-10-27T10:00:00.000Z',
+          coverUrl: null,
+        },
+      ],
+      page: 1,
+      limit: 6,
+      total: 1,
+    };
   else if (url.pathname === '/api/v1/auth/refresh')
     body = { status: 'USED', accessToken: 'test-memory-access' };
   else if (url.pathname === '/api/v1/me') body = member;

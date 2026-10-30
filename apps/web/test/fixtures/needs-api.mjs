@@ -24,6 +24,7 @@ const place = (empty = false, limit = 20) => ({
 createServer((req, res) => {
   const url = new URL(req.url ?? '/', 'http://localhost');
   let body;
+  let status = 200;
   if (url.pathname === '/api/v1/health') body = { ok: true };
   else if (url.pathname === '/api/v1/places')
     body = { items: [place(false, 3), place(true, 3)], page: 1, limit: 12, total: 2 };
@@ -39,7 +40,10 @@ createServer((req, res) => {
       limit,
       total: items.length,
     };
+  } else if (url.pathname.startsWith('/api/v1/pages/')) {
+    status = 404;
+    body = { code: 'NOT_FOUND' };
   } else body = { items: [], page: 1, limit: 20, total: 0 };
-  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.writeHead(status, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify(body));
 }).listen(4100, '127.0.0.1');

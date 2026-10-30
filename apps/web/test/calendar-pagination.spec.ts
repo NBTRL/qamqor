@@ -106,3 +106,31 @@ test.describe('server-rendered calendar', () => {
     expect(requests).toBe(0);
   });
 });
+
+test.describe('calendar without JavaScript', () => {
+  test.use({ javaScriptEnabled: false });
+  test('the first 100 public events are visible without hydration', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 900 });
+    await page.goto('/kalendar');
+    const calendar = page.getByRole('region', { name: 'События календаря' });
+    await expect(calendar.getByRole('heading', { name: 'Событие 100', exact: true })).toBeVisible();
+    await expect(calendar.getByText('Показано 100 из 205')).toBeVisible();
+    await expect(calendar.getByRole('link', { name: 'Закрытое событие', exact: true })).toHaveCount(
+      0,
+    );
+    await expect(calendar.getByRole('button', { name: 'Загрузить ещё' })).toBeHidden();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+  });
+  test('an empty server calendar does not remain on a loading message', async ({
+    page,
+    request,
+  }) => {
+    await request.post(fixture + '/__scenario', { data: { total: 0 } });
+    await page.goto('/kalendar');
+    const calendar = page.getByRole('region', { name: 'События календаря' });
+    await expect(calendar.getByText('Ближайших событий пока нет.')).toBeVisible();
+    await expect(calendar.getByText('Загрузка…')).toHaveCount(0);
+  });
+});

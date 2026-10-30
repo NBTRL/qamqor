@@ -1,6 +1,69 @@
 import { NOTIFICATION_TYPES } from '@club/shared';
 import { test, expect, type Page } from '@playwright/test';
+import { randomUUID } from 'node:crypto';
+test.beforeEach(async ({ page }) => {
+  await page
+    .context()
+    .addCookies([
+      { name: 'qa_shell_fixture', value: randomUUID(), domain: 'localhost', path: '/' },
+    ]);
+});
 const placeId = '9d65a6ee-76cc-4b74-bccc-fcf3d43c6f21';
+test.describe('public shell without JavaScript', () => {
+  test.use({ javaScriptEnabled: false });
+  test('the homepage and mobile navigation remain readable without hydration', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 900 });
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'Миссия Клуба', exact: true })).toBeVisible();
+    await expect(
+      page.getByRole('link', { name: 'Новость для публичного чтения', exact: true }),
+    ).toBeVisible();
+    const navigation = page.getByRole('navigation', { name: 'Основная навигация' });
+    await expect(navigation).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Меню', exact: true })).toBeHidden();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await navigation.getByRole('link', { name: 'Календарь', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Календарь', exact: true })).toBeVisible();
+  });
+  test('private areas still redirect a guest without relying on JavaScript', async ({ page }) => {
+    for (const path of ['/cabinet', '/admin', '/curator', '/trips', '/events', '/onboarding']) {
+      await page.goto(path);
+      const url = new URL(page.url());
+      expect(url.pathname).toBe('/login');
+      expect(url.searchParams.get('next')).toBe(path);
+      await expect(page.getByRole('navigation', { name: 'Личный раздел' })).toHaveCount(0);
+    }
+  });
+  test('a cookie alone does not expose admin content before authentication', async ({ page }) => {
+    await page
+      .context()
+      .addCookies([
+        { name: 'club_refresh', value: 'invalid-test-cookie', domain: 'localhost', path: '/' },
+      ]);
+    await page.goto('/admin');
+    await expect(page.getByRole('heading', { name: 'Управление Клубом' })).toHaveCount(0);
+    await expect(page.getByRole('navigation', { name: 'Личный раздел' })).toHaveCount(0);
+    await expect(page.locator('noscript > .notice')).toBeVisible();
+    await expect(page.locator('noscript > .notice')).toContainText('JavaScript отключён.');
+  });
+});
+test('the normal homepage hydrates and keeps the interactive mobile menu', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Миссия Клуба', exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Новость для публичного чтения', exact: true }),
+  ).toBeVisible();
+  await expect(page.locator('noscript > .notice')).toBeHidden();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.getByRole('button', { name: 'Меню', exact: true }).click();
+  await expect(page.getByRole('navigation', { name: 'Основная навигация' })).toBeVisible();
+  expect(errors).toEqual([]);
+});
 const me = {
   id: 'c8dc53c7-6548-4334-8bc9-e2a75fd0dacc',
   telegramId: '90000000001',
