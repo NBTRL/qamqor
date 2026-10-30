@@ -243,13 +243,25 @@ export class ApplicationResponseDto {
 }
 export class OpenDayWriteDto {
   @ApiProperty({ format: 'date-time' }) @IsDateString() startsAt!: string;
-  @ApiProperty() @IsString() @MinLength(2) @MaxLength(500) location!: string;
-  @ApiProperty() @IsInt() @Min(1) @Max(1000) capacity!: number;
+  @ApiProperty({ minLength: 2, maxLength: 500 })
+  @IsString()
+  @MinLength(2)
+  @MaxLength(500)
+  location!: string;
+  @ApiProperty({ type: 'integer', minimum: 1, maximum: 1000 })
+  @IsInt()
+  @Min(1)
+  @Max(1000)
+  capacity!: number;
   @ApiPropertyOptional({ nullable: true, type: String })
   @IsOptional()
   @IsUrl({ require_tld: false, protocols: ['http', 'https'], require_protocol: true })
   registrationUrl?: string | null;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(5000) notes?: string;
+  @ApiPropertyOptional({ maxLength: 5000 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(5000)
+  notes?: string;
 }
 export class OpenDayPatchDto extends PartialType(OpenDayWriteDto) {}
 export class OpenDayResponseDto extends OpenDayWriteDto {
@@ -268,12 +280,20 @@ export class OpenDayRegistrationResponseDto {
 }
 export class EventWriteDto {
   @ApiProperty({ enum: EventType }) @IsEnum(EventType) type!: EventType;
-  @ApiProperty() @IsString() @MinLength(2) @MaxLength(200) title!: string;
-  @ApiProperty() @IsString() @MaxLength(20000) description!: string;
+  @ApiProperty({ minLength: 2, maxLength: 200 })
+  @IsString()
+  @MinLength(2)
+  @MaxLength(200)
+  title!: string;
+  @ApiProperty({ maxLength: 20000 }) @IsString() @MaxLength(20000) description!: string;
   @ApiProperty({ format: 'date-time' }) @IsDateString() startsAt!: string;
   @ApiProperty({ format: 'date-time' }) @IsDateString() endsAt!: string;
-  @ApiProperty() @IsString() @MinLength(2) @MaxLength(500) location!: string;
-  @ApiPropertyOptional({ nullable: true, type: Number })
+  @ApiProperty({ minLength: 2, maxLength: 500 })
+  @IsString()
+  @MinLength(2)
+  @MaxLength(500)
+  location!: string;
+  @ApiPropertyOptional({ nullable: true, type: 'integer', minimum: 1, maximum: 1000 })
   @IsOptional()
   @IsInt()
   @Min(1)

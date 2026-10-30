@@ -10671,10 +10671,13 @@
             ]
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
           },
           "description": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 20000
           },
           "startsAt": {
             "type": "string",
@@ -10685,11 +10688,15 @@
             "format": "date-time"
           },
           "location": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 500
           },
           "capacity": {
-            "type": "number",
-            "nullable": true
+            "type": "integer",
+            "nullable": true,
+            "minimum": 1,
+            "maximum": 1000
           },
           "isPublic": {
             "type": "boolean",
@@ -10976,17 +10983,22 @@
             "format": "date-time"
           },
           "location": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 500
           },
           "capacity": {
-            "type": "number"
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
           },
           "registrationUrl": {
             "type": "string",
             "nullable": true
           },
           "notes": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 5000
           },
           "id": {
             "type": "string",
@@ -11767,10 +11779,13 @@
             ]
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
           },
           "description": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 20000
           },
           "startsAt": {
             "type": "string",
@@ -11781,11 +11796,15 @@
             "format": "date-time"
           },
           "location": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 500
           },
           "capacity": {
-            "type": "number",
-            "nullable": true
+            "type": "integer",
+            "nullable": true,
+            "minimum": 1,
+            "maximum": 1000
           },
           "isPublic": {
             "type": "boolean",
@@ -11820,10 +11839,13 @@
             ]
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
           },
           "description": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 20000
           },
           "startsAt": {
             "type": "string",
@@ -11834,11 +11856,15 @@
             "format": "date-time"
           },
           "location": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 500
           },
           "capacity": {
-            "type": "number",
-            "nullable": true
+            "type": "integer",
+            "nullable": true,
+            "minimum": 1,
+            "maximum": 1000
           },
           "isPublic": {
             "type": "boolean",
@@ -11898,17 +11924,22 @@
             "format": "date-time"
           },
           "location": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 500
           },
           "capacity": {
-            "type": "number"
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
           },
           "registrationUrl": {
             "type": "string",
             "nullable": true
           },
           "notes": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 5000
           }
         },
         "required": [
@@ -11925,17 +11956,22 @@
             "format": "date-time"
           },
           "location": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 500
           },
           "capacity": {
-            "type": "number"
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
           },
           "registrationUrl": {
             "type": "string",
             "nullable": true
           },
           "notes": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 5000
           }
         }
       },

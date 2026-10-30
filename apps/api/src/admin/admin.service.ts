@@ -6,11 +6,13 @@ import { ApiException } from '../common/api-exception.js';
 import type { Actor } from '../common/http.js';
 import { pageArgs, pageResult, type PageQueryDto } from '../common/query.dto.js';
 import type { PlaceQueryDto, RegionDto, RegionPatchDto } from '../club/club.dto.js';
+import { OpenDaysService } from '../club/events.service.js';
 @Injectable()
 export class AdminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly days: OpenDaysService,
   ) {}
   async regions(query: PageQueryDto) {
     const where = query.search
@@ -132,16 +134,6 @@ export class AdminService {
     return pageResult(items, total, query);
   }
   async markAttendance(actor: Actor, id: string, userId: string, attended: boolean) {
-    return this.prisma.$transaction(async (tx) => {
-      const row = await tx.openDayRegistration.upsert({
-        where: { sessionId_userId: { sessionId: id, userId } },
-        create: { sessionId: id, userId, attended },
-        update: { attended, ...(attended ? { cancelledAt: null } : {}) },
-      });
-      await this.audit.record(tx, actor.id, 'ATTENDANCE_MARKED', 'OpenDayRegistration', row.id, {
-        attended,
-      });
-      return row;
-    });
+    return this.days.markAttendance(actor, id, userId, attended);
   }
 }

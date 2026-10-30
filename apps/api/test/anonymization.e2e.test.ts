@@ -8,6 +8,7 @@ import { MeService } from '../dist/auth/me.service.js';
 import { TripsService } from '../dist/club/trips.service.js';
 import { EventsService, OpenDaysService } from '../dist/club/events.service.js';
 import { NotificationService } from '../dist/notifications/notification.service.js';
+import { AdminService } from '../dist/admin/admin.service.js';
 
 let module: TestingModule;
 let prisma: PrismaService;
@@ -277,6 +278,16 @@ describe('Account anonymization registrations (real database)', () => {
     expect(row.attended).toBe(true);
     await expect(
       days.attendance({ ...f.admin, sessionId: randomUUID(), adminVerified: true }, row.id, true),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(
+      module
+        .get(AdminService)
+        .markAttendance(
+          { ...f.admin, sessionId: randomUUID(), adminVerified: true },
+          day.id,
+          f.owner.id,
+          true,
+        ),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(
       (await prisma.openDayRegistration.findUniqueOrThrow({ where: { id: row.id } })).cancelledAt,

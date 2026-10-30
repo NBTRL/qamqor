@@ -53,12 +53,12 @@
         "type": "string",
         "enum": ["CHARITY_ACTION", "CLUB_EVENT", "MASTER_CLASS", "SEMINAR", "LEISURE", "TRIP"]
       },
-      "title": { "type": "string" },
-      "description": { "type": "string" },
+      "title": { "type": "string", "minLength": 2, "maxLength": 200 },
+      "description": { "type": "string", "maxLength": 20000 },
       "startsAt": { "type": "string", "format": "date-time" },
       "endsAt": { "type": "string", "format": "date-time" },
-      "location": { "type": "string" },
-      "capacity": { "type": "number", "nullable": true },
+      "location": { "type": "string", "minLength": 2, "maxLength": 500 },
+      "capacity": { "type": "integer", "nullable": true, "minimum": 1, "maximum": 1000 },
       "isPublic": { "type": "boolean", "default": true },
       "volunteersOnly": { "type": "boolean", "default": false }
     }
@@ -70,12 +70,12 @@
         "type": "string",
         "enum": ["CHARITY_ACTION", "CLUB_EVENT", "MASTER_CLASS", "SEMINAR", "LEISURE", "TRIP"]
       },
-      "title": { "type": "string" },
-      "description": { "type": "string" },
+      "title": { "type": "string", "minLength": 2, "maxLength": 200 },
+      "description": { "type": "string", "maxLength": 20000 },
       "startsAt": { "type": "string", "format": "date-time" },
       "endsAt": { "type": "string", "format": "date-time" },
-      "location": { "type": "string" },
-      "capacity": { "type": "number", "nullable": true },
+      "location": { "type": "string", "minLength": 2, "maxLength": 500 },
+      "capacity": { "type": "integer", "nullable": true, "minimum": 1, "maximum": 1000 },
       "isPublic": { "type": "boolean", "default": true },
       "volunteersOnly": { "type": "boolean", "default": false }
     },
@@ -160,20 +160,20 @@
     "type": "object",
     "properties": {
       "startsAt": { "type": "string", "format": "date-time" },
-      "location": { "type": "string" },
-      "capacity": { "type": "number" },
+      "location": { "type": "string", "minLength": 2, "maxLength": 500 },
+      "capacity": { "type": "integer", "minimum": 1, "maximum": 1000 },
       "registrationUrl": { "type": "string", "nullable": true },
-      "notes": { "type": "string" }
+      "notes": { "type": "string", "maxLength": 5000 }
     }
   },
   "OpenDayWriteDto": {
     "type": "object",
     "properties": {
       "startsAt": { "type": "string", "format": "date-time" },
-      "location": { "type": "string" },
-      "capacity": { "type": "number" },
+      "location": { "type": "string", "minLength": 2, "maxLength": 500 },
+      "capacity": { "type": "integer", "minimum": 1, "maximum": 1000 },
       "registrationUrl": { "type": "string", "nullable": true },
-      "notes": { "type": "string" }
+      "notes": { "type": "string", "maxLength": 5000 }
     },
     "required": ["startsAt", "location", "capacity"]
   },

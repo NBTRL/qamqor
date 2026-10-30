@@ -55,9 +55,11 @@ SMTP не предоставляется этими интеграциями. Д
 
 ## Сборка серверного контейнера
 
-API и worker используют один Dockerfile и одинаковый набор серверных зависимостей.
+API и worker используют корневой `Dockerfile.api` и одинаковый набор серверных зависимостей.
 `command` у daemon переопределяет команду HTTP-контейнера. Количество процессов,
 обработка фоновых заданий и границы HTTP API задаются прежними entrypoint приложения.
+Локальный `apps/api/Dockerfile`, описанный в README, запускает `main.js` напрямую,
+содержит Docker healthcheck и требует отдельного применения миграций перед запуском.
 
 Dockerfile устанавливает только API и его workspace-зависимости; исходники web
 и документация не копируются в серверный build. Слой установки располагается до
@@ -67,7 +69,7 @@ Dockerfile устанавливает только API и его workspace-за�
 
 `injectWorkspacePackages` и `syncInjectedDepsAfterScripts: [build]` позволяют
 `pnpm deploy` сформировать отдельный lockfile серверного пакета и сохранить свежий
-скомпилированный shared. Старый режим `--legacy` удалён. `--prefer-offline` использует
+скомпилированный shared. Корневой Dockerfile не использует `--legacy`. `--prefer-offline` использует
 кеш, а при отсутствии метаданных разрешает обращение к registry; проверки зависимостей
 и frozen lockfile не отключаются. Упаковываются production-зависимости, Prisma Client,
 CLI и миграции, необходимые при запуске.
@@ -79,6 +81,7 @@ scripts не гарантируют его наличие. CI проверяет
 
 ```sh
 pnpm --filter @club/api deploy --prod --prefer-offline --ignore-scripts /tmp/qamqor-runtime
+pnpm --dir /tmp/qamqor-runtime rebuild @prisma/engines
 node scripts/check-runtime.mjs /tmp/qamqor-runtime
 ```
 
@@ -109,6 +112,8 @@ node scripts/check-runtime.mjs /tmp/qamqor-runtime
 
 HTTP-контейнер перед запуском сервера применяет существующие Prisma-миграции
 через непулированное соединение и не начинает обслуживать запросы при ошибке.
+Используется `DATABASE_URL_UNPOOLED`, с резервным выбором `DATABASE_URL`.
+Отдельный worker сам миграции не применяет; перед его запуском схема должна быть обновлена.
 Production и Preview используют переменные своей ветки Neon. Seed автоматически
 не запускается, администраторы при деплое не создаются. Учебная миграция
 `20261030030000_educational_demo` один раз добавляет вымышленные материалы
