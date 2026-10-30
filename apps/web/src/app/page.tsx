@@ -6,9 +6,9 @@ import { NewsCard, StatCounter, StepList, HomeModals } from '@/components/public
 import { Section, Empty, ButtonLink, ErrorNotice, HelpCard } from '@/components/ui';
 import { date } from '@/lib/format';
 export const metadata = {
-  title: 'Клуб волонтеров — вместе мы сделаем мир детей ярче',
+  title: 'Qamqor — учебная волонтёрская платформа',
   description:
-    'Помогаем детям из детских домов и взрослым в интернатах. Присоединитесь к Клубу волонтеров: знакомство, анкета и поездки.',
+    'Учебная демонстрация платформы: знакомство с Клубом, анкета, события и управление волонтёрскими поездками.',
 };
 export default async function Home() {
   const api = await serverApi();

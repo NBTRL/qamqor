@@ -147,6 +147,12 @@ p {
   z-index: 20;
   box-shadow: 0 2px 12px #24203a0a;
 }
+.demo-banner {
+  padding: 12px 0;
+  background: var(--color-primary-light);
+  border-bottom: 1px solid var(--color-border);
+  font-size: 0.9rem;
+}
 .header__top {
   display: flex;
   align-items: center;
