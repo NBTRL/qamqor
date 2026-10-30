@@ -3,11 +3,19 @@ RUN npm install --global pnpm@11.25.0
 RUN apt-get update && apt-get install --no-install-recommends --yes openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /repo
 ENV HUSKY=0 CI=1
-COPY . .
-RUN pnpm install --frozen-lockfile \
-    && pnpm --filter @club/shared build \
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY apps/api/package.json ./apps/api/package.json
+COPY apps/web/package.json ./apps/web/package.json
+COPY packages/shared/package.json ./packages/shared/package.json
+COPY scripts ./scripts
+COPY packages/shared ./packages/shared
+COPY apps/api/prisma ./apps/api/prisma
+COPY apps/api/prisma.config.ts ./apps/api/prisma.config.ts
+RUN pnpm --filter @club/api... install --frozen-lockfile
+COPY apps/api ./apps/api
+RUN pnpm --filter @club/shared build \
     && pnpm --filter @club/api build \
-    && pnpm --filter @club/api deploy --prod --legacy --ignore-scripts /runtime
+    && pnpm --filter @club/api deploy --prod --prefer-offline --ignore-scripts /runtime
 
 FROM node:24-bookworm-slim AS runtime
 RUN apt-get update && apt-get install --no-install-recommends --yes openssl ca-certificates && rm -rf /var/lib/apt/lists/*

@@ -94,6 +94,13 @@ jobs:
           docker compose up --detach --build --wait postgres redis minio mailpit
           docker compose run --rm minio-init
       - run: pnpm test:e2e
+      - name: Build standalone backend image
+        run: docker build --file Dockerfile.api --tag qamqor-runtime:ci .
+      - name: Check packaged runtime without external network
+        run: |
+          docker run --rm --network none \
+            --mount "type=bind,source=$PWD/scripts/check-runtime.mjs,target=/app/check-runtime.mjs,readonly" \
+            --entrypoint node qamqor-runtime:ci check-runtime.mjs /app
       - name: Stop isolated infrastructure
         if: always()
         run: docker compose down --volumes --remove-orphans
