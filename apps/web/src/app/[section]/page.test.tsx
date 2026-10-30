@@ -30,23 +30,23 @@ describe('Managed public pages', () => {
     });
     await show(section);
     expect(screen.getByText('Опубликованный текст администратора')).toBeInTheDocument();
-    expect(screen.queryByText('Документ готовится')).not.toBeInTheDocument();
-    expect(screen.queryByText('Реквизиты — заглушка')).not.toBeInTheDocument();
+    expect(screen.queryByText('Данные в учебном проекте')).not.toBeInTheDocument();
+    expect(screen.queryByText('Учебная демонстрация помощи')).not.toBeInTheDocument();
     expect(get).toHaveBeenCalledWith('/api/v1/pages/{slug}', {
       params: { path: { slug: section } },
     });
     if (section === 'kontakty') expect(screen.getByTestId('contact-form')).toBeInTheDocument();
     if (section === 'donation')
-      expect(screen.getByRole('link', { name: 'Обсудить помощь' })).toHaveAttribute(
+      expect(screen.getByRole('link', { name: 'Перейти к тестовой форме' })).toHaveAttribute(
         'href',
         '/kontakty',
       );
   });
   it.each([
-    ['policy', 'Документ готовится'],
-    ['donation', 'Реквизиты — заглушка'],
-    ['kontakty', /Контактные реквизиты будут добавлены/],
-  ])('retains the existing fallback when %s is not configured', async (section, fallback) => {
+    ['policy', 'Данные в учебном проекте'],
+    ['donation', 'Учебная демонстрация помощи'],
+    ['kontakty', /Это учебный проект Qamqor/],
+  ])('renders the educational fallback when %s is not configured', async (section, fallback) => {
     get.mockResolvedValue({
       error: { code: 'NOT_FOUND' },
       response: new Response('{}', { status: 404 }),
@@ -66,14 +66,14 @@ describe('Managed public pages', () => {
       expect(screen.getByRole('alert')).toHaveTextContent(
         'Не удалось загрузить содержимое страницы',
       );
-      expect(screen.queryByText('Документ готовится')).not.toBeInTheDocument();
-      expect(screen.queryByText('Реквизиты — заглушка')).not.toBeInTheDocument();
+      expect(screen.queryByText('Данные в учебном проекте')).not.toBeInTheDocument();
+      expect(screen.queryByText('Учебная демонстрация помощи')).not.toBeInTheDocument();
       if (section === 'kontakty') expect(screen.getByTestId('contact-form')).toBeInTheDocument();
     },
   );
-  it('keeps the placeholder for an empty policy instead of rendering a blank document', async () => {
+  it('keeps the educational fallback for an empty policy instead of rendering a blank document', async () => {
     get.mockResolvedValue({ data: { bodyHtml: '  ' }, response: new Response('{}') });
     await show('policy');
-    expect(screen.getByText('Документ готовится')).toBeInTheDocument();
+    expect(screen.getByText('Данные в учебном проекте')).toBeInTheDocument();
   });
 });

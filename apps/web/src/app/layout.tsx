@@ -15,10 +15,10 @@ export const metadata: Metadata = {
   title: { default: 'Клуб волонтеров', template: '%s | Клуб волонтеров' },
   icons: { icon: '/logo.svg' },
   description:
-    'Сообщество волонтеров. Помогаем детям и взрослым в учреждениях, объединяем людей и добрые дела.',
+    'Учебный проект Qamqor: демонстрация волонтёрской платформы, личного кабинета и управления контентом.',
   openGraph: {
-    title: 'Клуб волонтеров',
-    description: 'Помощь, которая становится дружбой.',
+    title: 'Qamqor — учебный проект',
+    description: 'Демонстрация волонтёрской платформы.',
     type: 'website',
     locale: 'ru_RU',
     images: ['/hero.svg'],
@@ -34,6 +34,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             Перейти к содержимому
           </a>
           <Header />
+          <aside className="demo-banner" aria-label="Статус проекта">
+            <div className="container">
+              <strong>Учебный проект Qamqor.</strong> Демонстрация волонтёрской платформы. Сбор
+              денег не проводится.
+            </div>
+          </aside>
           <noscript>
             <style>{noScriptStyles}</style>
             <p className="container notice">

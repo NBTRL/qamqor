@@ -12,9 +12,12 @@ for (const slug of ['policy', 'donation', 'kontakty']) {
   test(`CMS content is visible on ${slug}`, async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 900 });
     await page.goto('/' + slug);
+    await expect(page.getByRole('complementary', { name: 'Статус проекта' })).toContainText(
+      'Учебный проект Qamqor.',
+    );
     await expect(page.getByRole('main').getByText('Содержимое CMS для ' + slug)).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Документ готовится' })).toHaveCount(0);
-    await expect(page.getByRole('heading', { name: 'Реквизиты — заглушка' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Данные в учебном проекте' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Учебная демонстрация помощи' })).toHaveCount(0);
     if (slug === 'kontakty')
       await expect(page.getByRole('button', { name: 'Отправить сообщение' })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
@@ -31,7 +34,7 @@ test('an unavailable CMS shows a loading error instead of a missing-policy place
   await expect(page.getByRole('main').getByRole('alert')).toHaveText(
     'Не удалось загрузить содержимое страницы. Обновите страницу и повторите попытку.',
   );
-  await expect(page.getByRole('heading', { name: 'Документ готовится' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Данные в учебном проекте' })).toHaveCount(0);
 });
 
 test.describe('CMS pages without JavaScript', () => {

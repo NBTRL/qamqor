@@ -123,11 +123,11 @@ export function Footer() {
         <p>
           © {new Date().getFullYear()} Клуб волонтеров
           <br />
-          Локальная версия платформы.
+          Учебный проект Qamqor.
         </p>
       </div>
       <div className="container footer__legal">
-        Локальная версия. Реквизиты и юридические сведения заполняются перед запуском.
+        Демонстрационный сайт для учебных целей. Реальные пожертвования не принимаются.
       </div>
       <Modal open={contact} onClose={() => setContact(false)} title="Связаться с Клубом">
         <ContactForm />

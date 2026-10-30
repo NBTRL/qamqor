@@ -43,6 +43,10 @@ export function ContactForm() {
       aria-busy={!interactive}
       onSubmit={form.handleSubmit((value) => mutation.mutate(value))}
     >
+      <p className="text-muted">
+        Учебная форма: сообщения сохраняются на сервере. Для проверки используйте вымышленные имя и
+        контакт.
+      </p>
       <fieldset className="form__body" disabled={!interactive}>
         {(['name', 'contact', 'message'] as const).map((name) => (
           <Field
