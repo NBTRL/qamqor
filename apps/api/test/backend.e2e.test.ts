@@ -1145,6 +1145,60 @@ describe('Контент, статистика и инфраструктура',
     expect((await write([{ key: 'beneficiaries', value: -1 }])).status).toBe(400);
   });
 
+  it('проводит кандидата через учебный каталог, запись, личный кабинет и отмену без обхода прав', async () => {
+    const eventId = 'd30e0000-0000-4000-8000-000000000301';
+    const volunteerEventId = 'd30e0000-0000-4000-8000-000000000303';
+    const dayId = 'd30e0000-0000-4000-8000-000000000501';
+    const places = await req('get', '/places?search=Демо:');
+    expect(places.status).toBe(200);
+    const place = places.body.items.find((row: { slug: string }) => row.slug === 'edu-solnechny');
+    expect(place).toBeDefined();
+    const needs = await req('get', `/needs?placeId=${place.id}`);
+    expect(needs.status).toBe(200);
+    expect(needs.body.total).toBe(3);
+    const calendar = await req('get', '/public/calendar');
+    expect(calendar.body.items.some((row: { id: string }) => row.id === eventId)).toBe(true);
+    expect((await req('post', `/events/${eventId}/register`).send({})).status).toBe(401);
+    const candidate = await loginUser();
+    expect(
+      (
+        await req('post', `/events/${eventId}/register`)
+          .set('Authorization', `Bearer ${candidate.access}`)
+          .send({})
+      ).body.code,
+    ).toBe(ErrorCode.ONBOARDING_REQUIRED);
+    await onboard(candidate.access);
+    const auth = { Authorization: `Bearer ${candidate.access}` };
+    expect((await req('post', `/events/${eventId}/register`).set(auth).send({})).status).toBe(201);
+    expect((await req('post', `/me/open-days/${dayId}/register`).set(auth).send({})).status).toBe(
+      201,
+    );
+    expect(
+      (await req('post', `/events/${volunteerEventId}/register`).set(auth).send({})).body.code,
+    ).toBe(ErrorCode.EVENT_VOLUNTEERS_ONLY);
+    expect(
+      (await req('post', '/trips/d30e0000-0000-4000-8000-000000000401/register').set(auth).send({}))
+        .status,
+    ).toBe(403);
+    const registrations = await req('get', '/me/registrations').set(auth);
+    expect(registrations.status).toBe(200);
+    expect(registrations.body.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'EVENT', entityId: eventId, status: 'CONFIRMED' }),
+        expect.objectContaining({ kind: 'OPEN_DAY', entityId: dayId, cancelledAt: null }),
+      ]),
+    );
+    expect((await req('delete', `/events/${eventId}/register`).set(auth)).status).toBe(200);
+    expect((await req('delete', `/me/open-days/${dayId}/register`).set(auth)).status).toBe(200);
+    const cancelled = await req('get', '/me/registrations').set(auth);
+    expect(
+      cancelled.body.items.find((row: { entityId: string }) => row.entityId === eventId).status,
+    ).toBe('CANCELLED');
+    expect(
+      cancelled.body.items.find((row: { entityId: string }) => row.entityId === dayId).cancelledAt,
+    ).not.toBeNull();
+  });
+
   it('создает seed повторяемо и сохраняет изменения, не подделывая телефон/согласие администратора', async () => {
     const env = {
       ...getEnvironment(),
