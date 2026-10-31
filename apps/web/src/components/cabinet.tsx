@@ -34,6 +34,7 @@ import { Button, ButtonLink, ErrorNotice, Field, Modal } from './ui';
 import { OpenDays } from './public-widgets';
 import { DataTable } from './data-table';
 import { Upload } from './upload';
+import { useUploadGuard } from './upload-guard';
 export function BotWarning() {
   const { me } = useAuth();
   return me?.botBlockedAt ? (
@@ -346,6 +347,7 @@ const profileSchema = z.object({
 export function Profile() {
   const { me, reload } = useAuth();
   const cache = useQueryClient();
+  const uploads = useUploadGuard();
   const form = useForm<z.infer<typeof profileSchema>>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
@@ -390,7 +392,18 @@ export function Profile() {
   return (
     <>
       <h1>Профиль</h1>
-      <form className="form" onSubmit={form.handleSubmit((body) => mutation.mutate(body))}>
+      <form
+        className="form"
+        onSubmit={(event) => {
+          if (uploads.isBlocked() || mutation.isPending || form.formState.isSubmitting) {
+            event.preventDefault();
+            return;
+          }
+          void form.handleSubmit((body) => {
+            if (!uploads.isBlocked() && !mutation.isPending) mutation.mutate(body);
+          })(event);
+        }}
+      >
         {me?.avatarUrl && (
           <Image
             unoptimized
@@ -405,6 +418,8 @@ export function Profile() {
           purpose="AVATAR"
           onUploaded={(value) => setAvatar(value.fileUrl)}
           label="Новый аватар"
+          onStateChange={uploads.onStateChange}
+          disabled={mutation.isPending || form.formState.isSubmitting}
         />
         {(['fullName', 'nickname', 'city'] as const).map((name) => (
           <Field
@@ -420,7 +435,9 @@ export function Profile() {
         </Field>
         <ErrorNotice error={mutation.error} />
         {mutation.isSuccess && <p role="status">Профиль сохранён.</p>}
-        <Button disabled={mutation.isPending}>Сохранить профиль</Button>
+        <Button disabled={mutation.isPending || form.formState.isSubmitting || uploads.blocked}>
+          Сохранить профиль
+        </Button>
       </form>
       <section className="section">
         <h2>Резервный e-mail</h2>

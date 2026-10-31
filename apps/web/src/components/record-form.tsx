@@ -19,6 +19,7 @@ import definitions from '@/lib/form-definitions.json';
 import { inputDateTime } from '@/lib/format';
 import { Button, ErrorNotice, Field } from './ui';
 import { Upload } from './upload';
+import { useUploadGuard } from './upload-guard';
 const Editor = dynamic(() => import('./editor'), {
   ssr: false,
   loading: () => <p>Загрузка редактора…</p>,
@@ -116,6 +117,7 @@ export function RecordForm({
     defaultValues: defaults,
   });
   const save = useMutation({ mutationFn: onSave, onSuccess: (data) => onDone?.(data) });
+  const uploads = useUploadGuard();
   const lookups = useQuery({
     queryKey: ['form-lookups', schemaName],
     queryFn: async () => {
@@ -159,7 +161,16 @@ export function RecordForm({
     ),
   });
   return (
-    <form className="form" onSubmit={form.handleSubmit((body) => save.mutate(body))}>
+    <form
+      className="form"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (uploads.isBlocked() || save.isPending || form.formState.isSubmitting) return;
+        void form.handleSubmit((body) => {
+          if (!uploads.isBlocked() && !save.isPending) save.mutate(body);
+        })(event);
+      }}
+    >
       {Object.entries(properties).map(([key, raw]) => {
         const field = resolve(raw);
         const required = node.required?.includes(key);
@@ -194,7 +205,12 @@ export function RecordForm({
                 hint={!required ? 'Необязательно' : undefined}
               >
                 {key === 'bodyHtml' ? (
-                  <Editor value={String(control.value ?? '')} onChange={control.onChange} />
+                  <Editor
+                    value={String(control.value ?? '')}
+                    onChange={control.onChange}
+                    onUploadStateChange={uploads.onStateChange}
+                    disabled={save.isPending || form.formState.isSubmitting}
+                  />
                 ) : field.type === 'boolean' ? (
                   <input
                     type="checkbox"
@@ -281,6 +297,8 @@ export function RecordForm({
                       <Upload
                         purpose={key === 'fileUrl' ? 'CLUB_REPORT' : 'CONTENT'}
                         onUploaded={(upload) => control.onChange(upload.fileUrl)}
+                        onStateChange={uploads.onStateChange}
+                        disabled={save.isPending || form.formState.isSubmitting}
                         label={key === 'fileUrl' ? 'Загрузить PDF' : 'Загрузить изображение'}
                       />
                     )}
@@ -292,7 +310,13 @@ export function RecordForm({
         );
       })}
       <ErrorNotice error={save.error ?? lookups.error} />
-      <Button disabled={save.isPending || lookups.isLoading}>Сохранить</Button>
+      <Button
+        disabled={
+          save.isPending || lookups.isLoading || form.formState.isSubmitting || uploads.blocked
+        }
+      >
+        Сохранить
+      </Button>
       {save.isSuccess && <p role="status">Сохранено.</p>}
     </form>
   );

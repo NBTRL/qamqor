@@ -176,6 +176,237 @@ test('CMS news form sends TipTap HTML and shared status (isolated API mocks)', a
   });
   expect(saved?.bodyHtml).toContain('<p>');
 });
+
+function uploadGate() {
+  let release!: () => void;
+  const promise = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  return { promise, release };
+}
+const imageFile = {
+  name: 'selected-image.png',
+  mimeType: 'image/png',
+  buffer: Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jw1kAAAAASUVORK5CYII=',
+    'base64',
+  ),
+};
+
+test('upload blocks partner saving through both presign and storage, then saves the new logo', async ({
+  page,
+}) => {
+  await mockApi(page);
+  const partner = {
+    id: placeId,
+    slug: 'existing-partner',
+    name: 'Партнер Клуба',
+    logoUrl: 'https://assets.example.test/old-logo.png',
+    websiteUrl: null,
+    isActive: true,
+    sortOrder: 0,
+  };
+  const submissions: Record<string, unknown>[] = [];
+  await page.route('**/api/v1/admin/partners**', async (route) => {
+    if (route.request().method() === 'PATCH') {
+      submissions.push(route.request().postDataJSON());
+      await route.fulfill({ json: { ...partner, ...submissions.at(-1) } });
+    } else await route.fulfill({ json: { items: [partner], total: 1, page: 1, limit: 20 } });
+  });
+  const presign = uploadGate();
+  const storage = uploadGate();
+  let storageRequests = 0;
+  const fileUrl = 'https://assets.example.test/new-logo.png';
+  await page.route('**/api/v1/uploads/presign', async (route) => {
+    await presign.promise;
+    await route.fulfill({
+      json: {
+        uploadId: placeId,
+        url: 'http://localhost:3000/__qa_upload/partner',
+        fileUrl,
+        fields: { key: 'new-logo.png' },
+      },
+    });
+  });
+  await page.route('**/__qa_upload/partner', async (route) => {
+    storageRequests++;
+    await storage.promise;
+    await route.fulfill({ status: 204 });
+  });
+  try {
+    await page.goto('/admin/partners');
+    await page.getByRole('button', { name: 'Редактировать', exact: true }).click();
+    const dialog = page.getByRole('dialog');
+    const save = dialog.getByRole('button', { name: 'Сохранить', exact: true });
+    await dialog.getByLabel('Загрузить изображение', { exact: true }).setInputFiles(imageFile);
+    await expect(dialog.getByText('Загрузка…', { exact: true })).toBeVisible();
+    await expect(save).toBeDisabled();
+    await dialog.locator('form').evaluate((form: HTMLFormElement) => form.requestSubmit());
+    await expect(dialog).toBeVisible();
+    expect(submissions).toEqual([]);
+    expect(storageRequests).toBe(0);
+
+    presign.release();
+    await expect.poll(() => storageRequests).toBe(1);
+    await expect(save).toBeDisabled();
+    await dialog.locator('form').evaluate((form: HTMLFormElement) => form.requestSubmit());
+    await expect(dialog).toBeVisible();
+    expect(submissions).toEqual([]);
+
+    storage.release();
+    await expect(save).toBeEnabled();
+    await expect(dialog.getByLabel('Логотип', { exact: true })).toHaveValue(fileUrl);
+    await save.click();
+    await expect(dialog).toHaveCount(0);
+    expect(submissions).toHaveLength(1);
+    expect(submissions[0]?.logoUrl).toBe(fileUrl);
+  } finally {
+    presign.release();
+    storage.release();
+  }
+});
+
+test('upload in the rich text editor keeps CMS saving blocked after the cover finishes', async ({
+  page,
+}) => {
+  await mockApi(page);
+  const submissions: Record<string, unknown>[] = [];
+  await page.route('**/api/v1/admin/news', async (route) => {
+    if (route.request().method() === 'POST') {
+      submissions.push(route.request().postDataJSON());
+      await route.fulfill({ status: 201, json: { id: placeId, ...submissions.at(-1) } });
+    } else await route.fulfill({ json: { items: [], total: 0, page: 1, limit: 20 } });
+  });
+  const illustration = uploadGate();
+  const urls = [
+    'http://localhost:3000/__qa_file/illustration.png',
+    'http://localhost:3000/__qa_file/cover.png',
+  ];
+  let presignRequests = 0;
+  let storageRequests = 0;
+  await page.route('**/api/v1/uploads/presign', async (route) => {
+    const index = presignRequests++;
+    await route.fulfill({
+      json: {
+        uploadId: placeId,
+        url: `http://localhost:3000/__qa_upload/news-${index}`,
+        fileUrl: urls[index],
+        fields: { key: `news-${index}.png` },
+      },
+    });
+  });
+  await page.route('**/__qa_upload/news-*', async (route) => {
+    storageRequests++;
+    if (route.request().url().endsWith('news-0')) await illustration.promise;
+    await route.fulfill({ status: 204 });
+  });
+  await page.route('**/__qa_file/*.png', (route) =>
+    route.fulfill({ contentType: 'image/png', body: imageFile.buffer }),
+  );
+  try {
+    await page.goto('/admin/news');
+    await page.getByRole('button', { name: 'Добавить', exact: true }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByLabel('Адрес страницы (латиницей)').fill('news-with-images');
+    await dialog.getByLabel('Название', { exact: true }).fill('Новость с фотографиями');
+    await dialog.locator('[contenteditable=true]').fill('Текст новости с иллюстрацией.');
+    await dialog.getByLabel('Краткое описание').fill('Анонс новости с фотографиями');
+    const files = dialog.locator('input[type=file]');
+    await expect(files).toHaveCount(2);
+    await files.nth(0).setInputFiles(imageFile);
+    await expect.poll(() => storageRequests).toBe(1);
+    await files.nth(1).setInputFiles({ ...imageFile, name: 'cover.png' });
+    await expect(dialog.getByLabel('Обложка', { exact: true })).toHaveValue(urls[1]!);
+    const save = dialog.getByRole('button', { name: 'Сохранить', exact: true });
+    await expect(save).toBeDisabled();
+    await dialog.locator('form').evaluate((form: HTMLFormElement) => form.requestSubmit());
+    await expect(dialog).toBeVisible();
+    expect(submissions).toEqual([]);
+
+    illustration.release();
+    await expect(dialog.locator('.tiptap img')).toHaveAttribute('src', urls[0]!);
+    await expect(save).toBeEnabled();
+    await save.click();
+    await expect(dialog).toHaveCount(0);
+    expect(submissions).toHaveLength(1);
+    expect(submissions[0]?.coverUrl).toBe(urls[1]);
+    expect(submissions[0]?.bodyHtml).toContain(urls[0]);
+  } finally {
+    illustration.release();
+  }
+});
+
+test('upload failure blocks profile saving until the selected avatar is abandoned or retried', async ({
+  page,
+}) => {
+  await mockApi(page);
+  const submissions: Record<string, unknown>[] = [];
+  await page.route('**/api/v1/me', async (route) => {
+    if (route.request().method() === 'PATCH') submissions.push(route.request().postDataJSON());
+    await route.fulfill({ json: { ...me, ...submissions.at(-1) } });
+  });
+  let storageRequests = 0;
+  const retry = uploadGate();
+  const fileUrl = 'http://localhost:3000/__qa_file/avatar.png';
+  await page.route('**/api/v1/uploads/presign', (route) =>
+    route.fulfill({
+      json: {
+        uploadId: placeId,
+        url: 'http://localhost:3000/__qa_upload/avatar',
+        fileUrl,
+        fields: { key: 'avatar.png' },
+      },
+    }),
+  );
+  await page.route('**/__qa_upload/avatar', async (route) => {
+    storageRequests++;
+    if (storageRequests <= 2) await route.fulfill({ status: 500 });
+    else {
+      await retry.promise;
+      await route.fulfill({ status: 204 });
+    }
+  });
+  await page.route('**/__qa_file/avatar.png', (route) =>
+    route.fulfill({ contentType: 'image/png', body: imageFile.buffer }),
+  );
+  try {
+    await page.goto('/cabinet/profile');
+    const save = page.getByRole('button', { name: 'Сохранить профиль', exact: true });
+    const input = page.getByLabel('Новый аватар', { exact: true });
+    await input.setInputFiles(imageFile);
+    await expect(
+      page.getByRole('button', { name: 'Повторить загрузку', exact: true }),
+    ).toBeVisible();
+    await expect(save).toBeDisabled();
+    await save.locator('..').evaluate((form: HTMLFormElement) => form.requestSubmit());
+    expect(submissions).toEqual([]);
+    await page.getByRole('button', { name: 'Не использовать выбранный файл', exact: true }).click();
+    await expect(save).toBeEnabled();
+    await save.click();
+    await expect(page.getByText('Профиль сохранён.', { exact: true })).toBeVisible();
+    expect(submissions).toHaveLength(1);
+    expect(submissions[0]).not.toHaveProperty('avatarUrl');
+
+    await input.setInputFiles(imageFile);
+    await expect(
+      page.getByRole('button', { name: 'Повторить загрузку', exact: true }),
+    ).toBeVisible();
+    await page.getByRole('button', { name: 'Повторить загрузку', exact: true }).click();
+    await expect.poll(() => storageRequests).toBe(3);
+    await expect(save).toBeDisabled();
+    retry.release();
+    await expect(save).toBeEnabled();
+    await save.click();
+    await expect.poll(() => submissions.length).toBe(2);
+    await expect(page.getByRole('img', { name: 'Ваш аватар', exact: true })).toHaveAttribute(
+      'src',
+      fileUrl,
+    );
+    expect(submissions[1]?.avatarUrl).toBe(fileUrl);
+  } finally {
+    retry.release();
+  }
+});
 test('curator creates a trip only with an assigned place and Moscow dates', async ({ page }) => {
   await mockApi(page, 'VOLUNTEER');
   let saved: Record<string, unknown> | undefined;
