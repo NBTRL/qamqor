@@ -38,6 +38,8 @@ export const UPLOAD_PDF_MAX_BYTES = 20 * 1024 * 1024;
 export const DEFAULT_PAGE = 1;
 export const DEFAULT_PAGE_LIMIT = 20;
 export const MAX_PAGE_LIMIT = 100;
+// Keep every allowed (page - 1) * limit within Prisma's signed 32-bit skip range.
+export const MAX_PAGE = Math.floor(2_147_483_647 / MAX_PAGE_LIMIT) + 1;
 export const STAT_KEYS = [
   'places',
   'curators',

@@ -5,6 +5,7 @@ import {
   DEFAULT_PAGE_LIMIT,
   DISPLAY_TIME_ZONE,
   HELP_AREAS,
+  MAX_PAGE,
   MAX_PAGE_LIMIT,
   MIN_VOLUNTEER_AGE,
   WEEKDAYS,
@@ -98,7 +99,7 @@ export const emailCodeSchema = z
   .strict();
 export const paginationSchema = z
   .object({
-    page: z.coerce.number().int().min(1).default(DEFAULT_PAGE),
+    page: z.coerce.number().int().min(1).max(MAX_PAGE).default(DEFAULT_PAGE),
     limit: z.coerce.number().int().min(1).max(MAX_PAGE_LIMIT).default(DEFAULT_PAGE_LIMIT),
   })
   .strict();
