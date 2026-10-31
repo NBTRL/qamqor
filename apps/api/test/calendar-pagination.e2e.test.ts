@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { beforeAll, afterAll, describe, expect, it } from 'vitest';
+import { beforeAll, afterAll, describe, expect, it, vi } from 'vitest';
 import { Test } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
 import type { INestApplication } from '@nestjs/common';
@@ -10,6 +10,8 @@ import { AppModule } from '../dist/app.module.js';
 import { configureApp } from '../dist/openapi.js';
 import { PrismaService } from '../dist/prisma/prisma.service.js';
 import { RedisThrottlerStorage } from '../dist/common/throttle.service.js';
+import { EventsService } from '../dist/club/events.service.js';
+import { PublicContentService } from '../dist/content/public-content.service.js';
 
 let app: INestApplication;
 let prisma: PrismaService;
@@ -190,4 +192,68 @@ describe('Calendar pages and access', () => {
       ).status,
     ).toBe(400);
   });
+});
+
+describe('Pagination validation before database queries', () => {
+  const maxPage = Math.floor(2_147_483_647 / 100) + 1;
+  const routes = ['/public/calendar', '/calendar', '/public/reports', '/news'];
+  it.each([
+    { page: String(maxPage + 1) },
+    { page: '2147483647' },
+    { page: String(Number.MAX_SAFE_INTEGER) },
+    { page: '100000000000000000000' },
+    { page: '1e309' },
+    { page: 'Infinity' },
+    { page: 'NaN' },
+    { page: '1.5' },
+    { page: '0' },
+    { page: '-1' },
+    { limit: '101' },
+    { limit: '0' },
+    { limit: '1.5' },
+  ])('returns VALIDATION_ERROR without invoking list services for %j', async (input) => {
+    const calls = [
+      vi.spyOn(app.get(EventsService), 'calendar'),
+      vi.spyOn(app.get(PublicContentService), 'reports'),
+      vi.spyOn(app.get(PublicContentService), 'news'),
+    ];
+    try {
+      for (const route of routes) {
+        const call = request(app.getHttpServer())
+          .get(`/api/v1${route}`)
+          .query({ ...(route.includes('calendar') ? range : {}), limit: 20, ...input });
+        if (route === '/calendar') call.set('Authorization', `Bearer ${access}`);
+        const response = await call;
+        expect(response.status, route).toBe(400);
+        expect(response.body).toMatchObject({
+          statusCode: 400,
+          code: 'VALIDATION_ERROR',
+          details: {
+            fields: expect.arrayContaining([
+              { path: Object.keys(input)[0], messages: expect.any(Array) },
+            ]),
+          },
+        });
+      }
+      for (const call of calls) expect(call).not.toHaveBeenCalled();
+    } finally {
+      for (const call of calls) call.mockRestore();
+    }
+  });
+
+  it.each(routes)(
+    'accepts the maximum page with minimum and maximum limits on %s',
+    async (route) => {
+      for (const limit of [1, 100]) {
+        const call = request(app.getHttpServer())
+          .get(`/api/v1${route}`)
+          .query({ ...(route.includes('calendar') ? range : {}), page: maxPage, limit });
+        if (route === '/calendar') call.set('Authorization', `Bearer ${access}`);
+        const response = await call;
+        expect(response.status).toBe(200);
+        expect(response.body).toMatchObject({ items: [], page: maxPage, limit });
+        expect(response.body.total).toBeGreaterThanOrEqual(0);
+      }
+    },
+  );
 });
