@@ -9,6 +9,8 @@ import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AuditService } from '../common/audit.service.js';
 import { lockActiveUser } from '../common/active-user.js';
+import { retryTransaction } from '../common/transaction-retry.js';
+import { cancelFutureRegistrations } from './registration-cleanup.js';
 import { ApiException } from '../common/api-exception.js';
 import type { Actor } from '../common/http.js';
 import { pageArgs, pageResult } from '../common/query.dto.js';
@@ -137,68 +139,84 @@ export class ApplicationsService {
     return pageResult(items.map(adminApplication), total, query);
   }
   async decision(actor: Actor, id: string, dto: ApplicationDecisionDto) {
-    return this.prisma.$transaction(async (tx) => {
-      const initial = await tx.candidateApplication.findUnique({ where: { id } });
-      if (!initial) throw new ApiException(ErrorCode.NOT_FOUND);
-      await tx.$queryRaw`SELECT "id" FROM "users" WHERE "id"=${initial.userId}::uuid FOR UPDATE`;
-      await tx.$queryRaw`SELECT "id" FROM "candidate_applications" WHERE "id"=${id}::uuid FOR UPDATE`;
-      const row = await tx.candidateApplication.findUniqueOrThrow({
-        where: { id },
-        include: { user: true },
-      });
-      if (row.user.anonymizedAt || row.user.isBlocked)
-        throw new ApiException(ErrorCode.ACCOUNT_BLOCKED);
-      const attended =
-        (await tx.openDayRegistration.count({ where: { userId: row.userId, attended: true } })) > 0;
-      assertDecision(dto.status, row.questionnaire, attended, dto.comment);
-      this.audit.assertTransition('ApplicationStatus', row.status, dto.status);
-      await this.audit.transition(
-        tx,
-        actor.id,
-        'CandidateApplication',
-        id,
-        'ApplicationStatus',
-        row.status,
-        dto.status,
-      );
-      await tx.candidateApplication.update({
-        where: { id },
-        data: { status: dto.status, adminComment: dto.comment, reviewedById: actor.id },
-      });
-      await tx.applicationHistory.create({
-        data: {
-          applicationId: id,
-          actorId: actor.id,
-          fromStatus: row.status,
-          toStatus: dto.status,
-          comment: dto.comment,
-        },
-      });
-      if (dto.status === 'ACCEPTED' && row.user.role === 'CANDIDATE') {
-        await tx.user.update({ where: { id: row.userId }, data: { role: 'VOLUNTEER' } });
-        await this.audit.record(tx, actor.id, 'ROLE_CHANGED', 'User', row.userId, {
-          from: row.user.role,
-          to: 'VOLUNTEER',
-        });
-      }
-      if (dto.status === 'REJECTED' && row.status === 'ACCEPTED' && row.user.role === 'VOLUNTEER') {
-        await tx.placeCurator.deleteMany({ where: { userId: row.userId } });
-        await tx.user.update({ where: { id: row.userId }, data: { role: 'CANDIDATE' } });
-        await this.audit.record(tx, actor.id, 'ROLE_CHANGED', 'User', row.userId, {
-          from: 'VOLUNTEER',
-          to: 'CANDIDATE',
-        });
-      }
-      await this.notifications.notify(tx, [row.userId], 'ApplicationStatusChanged', {
-        title: 'Заявка в Клуб волонтеров',
-        statusLabel: applicationStatusLabels[dto.status as ApplicationStatus],
-      });
-      return adminApplication(
-        await tx.candidateApplication.findUniqueOrThrow({
+    return retryTransaction(() =>
+      this.prisma.$transaction(async (tx) => {
+        const initial = await tx.candidateApplication.findUnique({ where: { id } });
+        if (!initial) throw new ApiException(ErrorCode.NOT_FOUND);
+        await tx.$queryRaw`SELECT "id" FROM "users" WHERE "id"=${initial.userId}::uuid FOR UPDATE`;
+        await tx.$queryRaw`SELECT "id" FROM "candidate_applications" WHERE "id"=${id}::uuid FOR UPDATE`;
+        const row = await tx.candidateApplication.findUniqueOrThrow({
           where: { id },
-          include: applicationInclude,
-        }),
-      );
-    });
+          include: { user: true },
+        });
+        if (row.user.anonymizedAt || row.user.isBlocked)
+          throw new ApiException(ErrorCode.ACCOUNT_BLOCKED);
+        const attended =
+          (await tx.openDayRegistration.count({ where: { userId: row.userId, attended: true } })) >
+          0;
+        assertDecision(dto.status, row.questionnaire, attended, dto.comment);
+        this.audit.assertTransition('ApplicationStatus', row.status, dto.status);
+        await this.audit.transition(
+          tx,
+          actor.id,
+          'CandidateApplication',
+          id,
+          'ApplicationStatus',
+          row.status,
+          dto.status,
+        );
+        await tx.candidateApplication.update({
+          where: { id },
+          data: { status: dto.status, adminComment: dto.comment, reviewedById: actor.id },
+        });
+        await tx.applicationHistory.create({
+          data: {
+            applicationId: id,
+            actorId: actor.id,
+            fromStatus: row.status,
+            toStatus: dto.status,
+            comment: dto.comment,
+          },
+        });
+        if (dto.status === 'ACCEPTED' && row.user.role === 'CANDIDATE') {
+          await tx.user.update({ where: { id: row.userId }, data: { role: 'VOLUNTEER' } });
+          await this.audit.record(tx, actor.id, 'ROLE_CHANGED', 'User', row.userId, {
+            from: row.user.role,
+            to: 'VOLUNTEER',
+          });
+        }
+        if (
+          dto.status === 'REJECTED' &&
+          row.status === 'ACCEPTED' &&
+          row.user.role === 'VOLUNTEER'
+        ) {
+          await tx.placeCurator.deleteMany({ where: { userId: row.userId } });
+          await tx.user.update({ where: { id: row.userId }, data: { role: 'CANDIDATE' } });
+          await this.audit.record(tx, actor.id, 'ROLE_CHANGED', 'User', row.userId, {
+            from: 'VOLUNTEER',
+            to: 'CANDIDATE',
+          });
+          await cancelFutureRegistrations(
+            tx,
+            this.audit,
+            this.notifications,
+            row.userId,
+            actor.id,
+            new Date(),
+            'VOLUNTEER_ONLY',
+          );
+        }
+        await this.notifications.notify(tx, [row.userId], 'ApplicationStatusChanged', {
+          title: 'Заявка в Клуб волонтеров',
+          statusLabel: applicationStatusLabels[dto.status as ApplicationStatus],
+        });
+        return adminApplication(
+          await tx.candidateApplication.findUniqueOrThrow({
+            where: { id },
+            include: applicationInclude,
+          }),
+        );
+      }),
+    );
   }
 }

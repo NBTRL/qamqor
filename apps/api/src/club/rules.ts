@@ -20,8 +20,8 @@ export function assertTripRegistration(
   if (status !== 'OPEN' || startsAt.getTime() <= Date.now())
     throw new ApiException(ErrorCode.TRIP_NOT_OPEN);
 }
-export function initialTripRegistration(confirmed: number, capacity: number): RegistrationStatus {
-  return confirmed < capacity ? RegistrationStatus.PENDING : RegistrationStatus.WAITLIST;
+export function initialTripRegistration(occupied: number, capacity: number): RegistrationStatus {
+  return occupied < capacity ? RegistrationStatus.PENDING : RegistrationStatus.WAITLIST;
 }
 export function assertFreePlace(confirmed: number, capacity: number): void {
   if (confirmed >= capacity) throw new ApiException(ErrorCode.TRIP_FULL);
