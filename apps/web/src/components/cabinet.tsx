@@ -2,7 +2,7 @@
 import Image from 'next/image';
 import { useNow } from '@/lib/use-now';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -646,6 +646,9 @@ export function Notifications() {
     </>
   );
 }
+const notificationSettingsValues = (items: Model<'SettingDto'>[], verified: boolean) => ({
+  items: items.map((item) => ({ ...item, email: verified && item.email })),
+});
 function NotificationSettings({
   initial,
   verified,
@@ -653,16 +656,51 @@ function NotificationSettings({
   initial: Model<'SettingDto'>[];
   verified: boolean;
 }) {
+  const cache = useQueryClient();
+  const saving = useRef(false);
   const form = useForm<{ items: Model<'SettingDto'>[] }>({
     resolver: zodResolver(schemaFor('SettingsWriteDto')),
-    defaultValues: { items: initial.map((item) => ({ ...item, email: verified && item.email })) },
+    defaultValues: notificationSettingsValues(initial, verified),
   });
+  const {
+    reset,
+    setValue,
+    formState: { dirtyFields },
+  } = form;
+  useEffect(() => {
+    // Refresh untouched switches without replacing an unsaved choice.
+    reset(notificationSettingsValues(initial, verified), { keepDirtyValues: true });
+    if (!verified)
+      NOTIFICATION_TYPES.forEach((_type, index) =>
+        setValue(`items.${index}.email`, false, { shouldDirty: true }),
+      );
+  }, [initial, verified, reset, setValue]);
   const save = useMutation({
     mutationFn: (body: { items: Model<'SettingDto'>[] }) =>
       result(api.PUT('/api/v1/me/notification-settings', { body })),
+    onSuccess: async (data) => {
+      // An older focus/refetch response must not replace the confirmed save.
+      await cache.cancelQueries({ queryKey: ['notification-settings'], exact: true });
+      cache.setQueryData(['notification-settings'], data);
+      reset(notificationSettingsValues(data.items, verified));
+    },
+    onSettled: () => {
+      saving.current = false;
+    },
   });
   return (
-    <form onSubmit={form.handleSubmit((body) => save.mutate(body))}>
+    <form
+      aria-busy={save.isPending}
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (saving.current) return;
+        void form.handleSubmit((body) => {
+          if (saving.current) return;
+          saving.current = true;
+          save.mutate(notificationSettingsValues(body.items, verified));
+        })(event);
+      }}
+    >
       <div className="table-wrap">
         <table>
           <thead>
@@ -680,13 +718,14 @@ function NotificationSettings({
                   <input
                     type="checkbox"
                     aria-label={`${notificationTitle(type)}: Telegram`}
+                    disabled={save.isPending}
                     {...form.register(`items.${index}.telegram`)}
                   />
                 </td>
                 <td>
                   <input
                     type="checkbox"
-                    disabled={!verified}
+                    disabled={!verified || save.isPending}
                     aria-label={`${notificationTitle(type)}: e-mail`}
                     {...form.register(`items.${index}.email`)}
                   />
@@ -700,7 +739,9 @@ function NotificationSettings({
         <Button disabled={save.isPending}>Сохранить настройки</Button>
       </div>
       <ErrorNotice error={save.error} />
-      {save.isSuccess && <p role="status">Настройки сохранены.</p>}
+      {save.isSuccess && !Object.keys(dirtyFields).length && (
+        <p role="status">Настройки сохранены.</p>
+      )}
     </form>
   );
 }

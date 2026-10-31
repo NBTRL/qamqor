@@ -1,4 +1,4 @@
-import { NOTIFICATION_TYPES } from '@club/shared';
+import { NOTIFICATION_TYPES, STAT_KEYS } from '@club/shared';
 import { test, expect, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -262,6 +262,135 @@ test('unverified email stays disabled while notification settings can be saved',
   await expect(page.getByText('Настройки сохранены.')).toBeVisible();
   expect(saved?.items).toHaveLength(NOTIFICATION_TYPES.length);
   expect(saved?.items.every((item) => item.email === false && item.telegram === true)).toBe(true);
+});
+
+test('saved notification preferences survive navigation and a second save', async ({ page }) => {
+  const errors: string[] = [];
+  const documents: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  page.on('console', (entry) => {
+    if (entry.type() === 'error' && /hydrat|React error #418/i.test(entry.text()))
+      errors.push(entry.text());
+  });
+  page.on('request', (request) => {
+    if (request.isNavigationRequest() && request.frame() === page.mainFrame())
+      documents.push(new URL(request.url()).pathname);
+  });
+  type Setting = { type: (typeof NOTIFICATION_TYPES)[number]; telegram: boolean; email: boolean };
+  let stored: Setting[] = NOTIFICATION_TYPES.map((type) => ({ type, telegram: true, email: true }));
+  const submissions: Setting[][] = [];
+  await mockApi(page, 'CANDIDATE');
+  await page.route('**/api/v1/me/notification-settings', async (route) => {
+    if (route.request().method() === 'PUT') {
+      const body = route.request().postDataJSON() as { items: Setting[] };
+      stored = body.items.map((item) => ({ ...item }));
+      submissions.push(stored.map((item) => ({ ...item })));
+    }
+    await route.fulfill({
+      json: { items: stored, total: stored.length, page: 1, limit: stored.length },
+    });
+  });
+  await page.goto('/cabinet/notifications');
+  const telegram = page.getByRole('checkbox', { name: 'Статус анкеты: Telegram', exact: true });
+  await expect(telegram).toBeChecked();
+  await telegram.uncheck();
+  await page.getByRole('button', { name: 'Сохранить настройки', exact: true }).click();
+  await expect(page.getByText('Настройки сохранены.', { exact: true })).toBeVisible();
+  expect(submissions).toHaveLength(1);
+  expect(submissions[0]?.find((item) => item.type === 'ApplicationStatusChanged')?.telegram).toBe(
+    false,
+  );
+
+  // Use the app's links: a full page load would discard QueryClient and hide a stale-cache bug.
+  const navigation = page.getByRole('navigation', { name: 'Личный раздел', exact: true });
+  await navigation.getByRole('link', { name: 'Профиль', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Профиль', exact: true })).toBeVisible();
+  await navigation.getByRole('link', { name: 'Уведомления', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Уведомления', exact: true })).toBeVisible();
+  await expect(telegram).not.toBeChecked();
+  await page.getByRole('button', { name: 'Сохранить настройки', exact: true }).click();
+  await expect.poll(() => submissions.length).toBe(2);
+  await expect(page.getByText('Настройки сохранены.', { exact: true })).toBeVisible();
+  expect(submissions[1]?.find((item) => item.type === 'ApplicationStatusChanged')?.telegram).toBe(
+    false,
+  );
+  expect(documents).toEqual(['/cabinet/notifications']);
+  expect(errors).toEqual([]);
+});
+
+test('saved statistic overrides survive navigation, update the dashboard and clear explicitly', async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  const documents: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  page.on('console', (entry) => {
+    if (entry.type() === 'error' && /hydrat|React error #418/i.test(entry.text()))
+      errors.push(entry.text());
+  });
+  page.on('request', (request) => {
+    if (request.isNavigationRequest() && request.frame() === page.mainFrame())
+      documents.push(new URL(request.url()).pathname);
+  });
+  type StatKey = (typeof STAT_KEYS)[number];
+  type Override = { key: StatKey; value: number | null };
+  const stored: Partial<Record<StatKey, number>> = {};
+  const submissions: Override[][] = [];
+  await mockApi(page);
+  await page.route('**/api/v1/admin/stat-overrides', async (route) => {
+    if (route.request().method() === 'PUT') {
+      const body = route.request().postDataJSON() as { items: Override[] };
+      submissions.push(body.items.map((item) => ({ ...item })));
+      for (const item of body.items) {
+        if (item.value === null) delete stored[item.key];
+        else stored[item.key] = item.value;
+      }
+    }
+    const items = STAT_KEYS.flatMap((key) =>
+      stored[key] === undefined ? [] : [{ key, value: stored[key] }],
+    );
+    await route.fulfill({ json: { items, total: items.length, page: 1, limit: STAT_KEYS.length } });
+  });
+  await page.route('**/api/v1/public/stats', (route) =>
+    route.fulfill({
+      json: Object.fromEntries(
+        STAT_KEYS.map((key) => [key, stored[key] ?? (key === 'places' ? 4 : 0)]),
+      ),
+    }),
+  );
+  // Seed the dashboard cache before saving an override, then navigate without reloading.
+  await page.goto('/admin');
+  const dashboardPlaces = page
+    .locator('.stat')
+    .filter({ hasText: 'Учреждений' })
+    .locator('.stat__value');
+  await expect(dashboardPlaces).toHaveText('4');
+  const navigation = page.getByRole('navigation', { name: 'Управление Клубом', exact: true });
+  await navigation.getByRole('link', { name: 'Счетчики', exact: true }).click();
+  const places = page.getByRole('spinbutton', { name: 'Учреждения', exact: true });
+  await expect(places).toHaveValue('');
+  await places.fill('42');
+  const save = page.getByRole('button', { name: 'Сохранить счетчики', exact: true });
+  await save.click();
+  await expect(page.getByText('Счетчики сохранены.', { exact: true })).toBeVisible();
+  expect(submissions[0]?.find((item) => item.key === 'places')?.value).toBe(42);
+  await navigation.getByRole('link', { name: 'Дашборд', exact: true }).click();
+  await expect(dashboardPlaces).toHaveText('42');
+  await navigation.getByRole('link', { name: 'Счетчики', exact: true }).click();
+  await expect(places).toHaveValue('42');
+  await save.click();
+  await expect.poll(() => submissions.length).toBe(2);
+  await expect(save).toBeEnabled();
+  expect(submissions[1]?.find((item) => item.key === 'places')?.value).toBe(42);
+  await places.fill('');
+  await save.click();
+  await expect.poll(() => submissions.length).toBe(3);
+  await expect(save).toBeEnabled();
+  expect(submissions[2]?.find((item) => item.key === 'places')?.value).toBeNull();
+  await navigation.getByRole('link', { name: 'Дашборд', exact: true }).click();
+  await expect(dashboardPlaces).toHaveText('4');
+  expect(documents).toEqual(['/admin']);
+  expect(errors).toEqual([]);
 });
 
 test('a guest Telegram confirmation opens the cabinet without reloading the browser', async ({
