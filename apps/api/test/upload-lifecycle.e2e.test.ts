@@ -113,6 +113,49 @@ afterAll(async () => {
   else process.env.S3_ENDPOINT = envBefore;
 });
 describe('Upload lifecycle on PostgreSQL and HTTP S3 protocol fixture', () => {
+  it('verifies and retains images embedded in sanitized CMS HTML, including relative sources', async () => {
+    const row = await asset(false);
+    const page = await content.write(actor, 'pages', {
+      slug: 'inline-image-' + randomUUID(),
+      title: 'Inline CMS image',
+      bodyHtml: `<p><img src="/api/v1/files/${row.id}" onerror="alert(1)"></p>`,
+    });
+    expect(page.bodyHtml).toContain(`<img src="/api/v1/files/${row.id}" />`);
+    const retained = await prisma.uploadAsset.findUniqueOrThrow({ where: { id: row.id } });
+    expect(retained.completedAt).not.toBeNull();
+    expect(retained.orphanedAt).toBeNull();
+  });
+  it.each(['AVATAR', 'REPORT_PHOTO', 'CLUB_REPORT'])(
+    'rejects %s files embedded in a public CMS image',
+    async (purpose) => {
+      const row = await asset(true, purpose);
+      const slug = 'wrong-inline-' + randomUUID();
+      await expect(
+        content.write(actor, 'pages', {
+          slug,
+          title: 'Invalid image',
+          bodyHtml: `<img src="${uri(row.id)}">`,
+        }),
+      ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+      expect(await prisma.page.findUnique({ where: { slug } })).toBeNull();
+    },
+  );
+  it('rejects missing objects, invalid image bytes, deleted assets and malformed managed image URLs', async () => {
+    const missing = await asset(),
+      invalid = await asset(),
+      deleted = await asset();
+    objects.delete(missing.key);
+    objects.set(invalid.key, Buffer.alloc(png.length));
+    await prisma.uploadAsset.update({ where: { id: deleted.id }, data: { deletedAt: new Date() } });
+    for (const url of [uri(missing.id), uri(invalid.id), uri(deleted.id), uri('not-a-uuid')])
+      await expect(
+        content.write(actor, 'pages', {
+          slug: 'bad-image-' + randomUUID(),
+          title: 'Invalid image',
+          bodyHtml: `<img src="${url}">`,
+        }),
+      ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+  });
   it('backfills pre-existing uploads conservatively when applying the migration', async () => {
     const client = new Client({ connectionString: process.env.DATABASE_URL });
     await client.connect();

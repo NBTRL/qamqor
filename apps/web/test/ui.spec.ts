@@ -314,6 +314,78 @@ function uploadGate() {
   });
   return { promise, release };
 }
+
+test('VIDEO media uses an external URL and offers image upload only for PHOTO', async ({
+  page,
+}) => {
+  await mockApi(page);
+  let saved: Record<string, unknown> | undefined;
+  await page.route('**/api/v1/admin/albums**', (route) =>
+    route.fulfill({
+      json: {
+        items: [{ id: placeId, title: 'Тестовый альбом' }],
+        total: 1,
+        page: 1,
+        limit: 100,
+      },
+    }),
+  );
+  await page.route('**/api/v1/admin/media-items**', async (route) => {
+    if (route.request().method() === 'POST') {
+      saved = route.request().postDataJSON();
+      await route.fulfill({ status: 201, json: { id: placeId, ...saved } });
+    } else await route.fulfill({ json: { items: [], total: 0, page: 1, limit: 20 } });
+  });
+  await page.goto('/admin/media-items');
+  await page.getByRole('button', { name: 'Добавить', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Тип', { exact: true }).selectOption('PHOTO');
+  await expect(dialog.getByLabel('Загрузить изображение', { exact: true })).toHaveCount(1);
+  await dialog.getByLabel('Тип', { exact: true }).selectOption('VIDEO');
+  await expect(dialog.getByLabel('Загрузить изображение', { exact: true })).toHaveCount(0);
+  await dialog.getByLabel('Альбом', { exact: true }).selectOption(placeId);
+  await dialog.getByLabel('Ссылка', { exact: true }).fill('https://media.example.test/video.mp4');
+  await dialog.getByRole('button', { name: 'Сохранить', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  expect(saved).toMatchObject({
+    type: 'VIDEO',
+    albumId: placeId,
+    url: 'https://media.example.test/video.mp4',
+  });
+});
+
+test('administrative partner limits reject invalid data before a request', async ({ page }) => {
+  await mockApi(page);
+  const submissions: Record<string, unknown>[] = [];
+  await page.route('**/api/v1/admin/partners**', async (route) => {
+    if (route.request().method() === 'POST') {
+      submissions.push(route.request().postDataJSON());
+      await route.fulfill({ status: 201, json: { id: placeId, ...submissions.at(-1) } });
+    } else await route.fulfill({ json: { items: [], total: 0, page: 1, limit: 20 } });
+  });
+  await page.goto('/admin/partners');
+  await page.getByRole('button', { name: 'Добавить', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByLabel('Название', { exact: true })).toHaveAttribute('maxlength', '200');
+  await expect(dialog.getByLabel('Порядок', { exact: true })).toHaveAttribute('max', '100000');
+  await dialog.getByLabel('Адрес страницы (латиницей)').fill('Bad slug');
+  await dialog.getByLabel('Название', { exact: true }).fill('Партнёр');
+  await dialog.getByLabel('Порядок', { exact: true }).fill('0.5');
+  await dialog.getByLabel('Сайт', { exact: true }).fill('https://');
+  await dialog
+    .locator('form')
+    .evaluate((form) =>
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })),
+    );
+  await expect(dialog.getByRole('alert').first()).toBeVisible();
+  expect(submissions).toEqual([]);
+  await dialog.getByLabel('Адрес страницы (латиницей)').fill('valid-partner');
+  await dialog.getByLabel('Порядок', { exact: true }).fill('0');
+  await dialog.getByLabel('Сайт', { exact: true }).fill('https://example.test');
+  await dialog.getByRole('button', { name: 'Сохранить', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  expect(submissions).toHaveLength(1);
+});
 const imageFile = {
   name: 'selected-image.png',
   mimeType: 'image/png',

@@ -55,7 +55,7 @@ function crud(
   createDto: Type<object>,
   responseDto: Type<object>,
 ): Type<object> {
-  const patchDto = PartialType(createDto);
+  const patchDto = PartialType(createDto, { skipNullProperties: false });
   const pipe = (expectedType: Type<object>) =>
     new StrictValidationPipe({
       expectedType,

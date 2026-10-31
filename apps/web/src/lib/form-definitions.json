@@ -2,10 +2,10 @@
   "AlbumWriteDto": {
     "type": "object",
     "properties": {
-      "slug": { "type": "string" },
-      "title": { "type": "string" },
-      "description": { "type": "string" },
-      "coverUrl": { "type": "string", "nullable": true },
+      "slug": { "type": "string", "maxLength": 150, "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+      "title": { "type": "string", "minLength": 2, "maxLength": 200 },
+      "description": { "type": "string", "maxLength": 10000 },
+      "coverUrl": { "type": "string", "nullable": true, "maxLength": 2000, "format": "uri" },
       "publishedAt": { "type": "string", "nullable": true, "format": "date-time" }
     },
     "required": ["slug", "title"]
@@ -13,9 +13,9 @@
   "ClubReportWriteDto": {
     "type": "object",
     "properties": {
-      "title": { "type": "string" },
-      "year": { "type": "number" },
-      "fileUrl": { "type": "string" },
+      "title": { "type": "string", "minLength": 2, "maxLength": 200 },
+      "year": { "type": "integer", "minimum": 1900, "maximum": 2200 },
+      "fileUrl": { "type": "string", "maxLength": 2000, "format": "uri" },
       "publishedAt": { "type": "string", "nullable": true, "format": "date-time" }
     },
     "required": ["title", "year", "fileUrl"]
@@ -24,7 +24,7 @@
     "type": "object",
     "properties": {
       "status": { "type": "string", "enum": ["NEW", "IN_PROGRESS", "DONE"] },
-      "adminNote": { "type": "string", "nullable": true }
+      "adminNote": { "type": "string", "nullable": true, "maxLength": 10000 }
     }
   },
   "CuratorAssignDto": {
@@ -38,10 +38,10 @@
   "DonationWriteDto": {
     "type": "object",
     "properties": {
-      "amount": { "type": "string", "example": "1500.00" },
-      "currency": { "type": "string", "default": "RUB" },
-      "donorName": { "type": "string", "nullable": true },
-      "note": { "type": "string", "nullable": true },
+      "amount": { "type": "string", "example": "1500.00", "maxLength": 15 },
+      "currency": { "type": "string", "default": "RUB", "pattern": "^[A-Z]{3}$" },
+      "donorName": { "type": "string", "nullable": true, "maxLength": 200 },
+      "note": { "type": "string", "nullable": true, "maxLength": 5000 },
       "receivedAt": { "type": "string", "format": "date-time" }
     },
     "required": ["amount", "receivedAt"]
@@ -84,10 +84,10 @@
   "InterviewWriteDto": {
     "type": "object",
     "properties": {
-      "slug": { "type": "string" },
-      "title": { "type": "string" },
-      "bodyHtml": { "type": "string" },
-      "coverUrl": { "type": "string", "nullable": true },
+      "slug": { "type": "string", "maxLength": 150, "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+      "title": { "type": "string", "minLength": 2, "maxLength": 200 },
+      "bodyHtml": { "type": "string", "maxLength": 100000 },
+      "coverUrl": { "type": "string", "nullable": true, "maxLength": 2000, "format": "uri" },
       "publishedAt": { "type": "string", "nullable": true, "format": "date-time" }
     },
     "required": ["slug", "title", "bodyHtml"]
@@ -97,10 +97,10 @@
     "properties": {
       "albumId": { "type": "string", "format": "uuid" },
       "type": { "allOf": [{ "$ref": "#/components/schemas/MediaType" }] },
-      "url": { "type": "string" },
-      "caption": { "type": "string" },
+      "url": { "type": "string", "maxLength": 2000, "format": "uri" },
+      "caption": { "type": "string", "maxLength": 1000 },
       "isPublic": { "type": "boolean" },
-      "sortOrder": { "type": "number" }
+      "sortOrder": { "type": "integer", "minimum": 0, "maximum": 100000 }
     },
     "required": ["albumId", "type", "url"]
   },
@@ -109,8 +109,8 @@
     "type": "object",
     "properties": {
       "id": { "type": "string", "format": "uuid" },
-      "title": { "type": "string" },
-      "description": { "type": "string" },
+      "title": { "type": "string", "minLength": 2, "maxLength": 200 },
+      "description": { "type": "string", "maxLength": 2000 },
       "isActive": { "type": "boolean", "default": true }
     },
     "required": ["title", "description"]
@@ -118,18 +118,22 @@
   "NeedsWriteDto": {
     "type": "object",
     "properties": {
-      "items": { "type": "array", "items": { "$ref": "#/components/schemas/NeedWriteDto" } }
+      "items": {
+        "maxItems": 100,
+        "type": "array",
+        "items": { "$ref": "#/components/schemas/NeedWriteDto" }
+      }
     },
     "required": ["items"]
   },
   "NewsWriteDto": {
     "type": "object",
     "properties": {
-      "slug": { "type": "string" },
-      "title": { "type": "string" },
-      "bodyHtml": { "type": "string" },
-      "excerpt": { "type": "string" },
-      "coverUrl": { "type": "string", "nullable": true },
+      "slug": { "type": "string", "maxLength": 150, "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+      "title": { "type": "string", "minLength": 2, "maxLength": 200 },
+      "bodyHtml": { "type": "string", "maxLength": 100000 },
+      "excerpt": { "type": "string", "maxLength": 1000 },
+      "coverUrl": { "type": "string", "nullable": true, "maxLength": 2000, "format": "uri" },
       "status": { "type": "string", "enum": ["DRAFT", "PUBLISHED", "ARCHIVED"] },
       "publishedAt": { "type": "string", "nullable": true, "format": "date-time" }
     },
@@ -162,7 +166,7 @@
       "startsAt": { "type": "string", "format": "date-time" },
       "location": { "type": "string", "minLength": 2, "maxLength": 500 },
       "capacity": { "type": "integer", "minimum": 1, "maximum": 1000 },
-      "registrationUrl": { "type": "string", "nullable": true },
+      "registrationUrl": { "type": "string", "nullable": true, "maxLength": 2000, "format": "uri" },
       "notes": { "type": "string", "maxLength": 5000 }
     }
   },
@@ -172,7 +176,7 @@
       "startsAt": { "type": "string", "format": "date-time" },
       "location": { "type": "string", "minLength": 2, "maxLength": 500 },
       "capacity": { "type": "integer", "minimum": 1, "maximum": 1000 },
-      "registrationUrl": { "type": "string", "nullable": true },
+      "registrationUrl": { "type": "string", "nullable": true, "maxLength": 2000, "format": "uri" },
       "notes": { "type": "string", "maxLength": 5000 }
     },
     "required": ["startsAt", "location", "capacity"]
@@ -180,28 +184,32 @@
   "OverridesDto": {
     "type": "object",
     "properties": {
-      "items": { "type": "array", "items": { "$ref": "#/components/schemas/StatOverrideDto" } }
+      "items": {
+        "maxItems": 7,
+        "type": "array",
+        "items": { "$ref": "#/components/schemas/StatOverrideDto" }
+      }
     },
     "required": ["items"]
   },
   "PageWriteDto": {
     "type": "object",
     "properties": {
-      "slug": { "type": "string" },
-      "title": { "type": "string" },
-      "bodyHtml": { "type": "string" }
+      "slug": { "type": "string", "maxLength": 150, "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+      "title": { "type": "string", "minLength": 2, "maxLength": 200 },
+      "bodyHtml": { "type": "string", "maxLength": 100000 }
     },
     "required": ["slug", "title", "bodyHtml"]
   },
   "PartnerWriteDto": {
     "type": "object",
     "properties": {
-      "slug": { "type": "string" },
-      "name": { "type": "string" },
-      "logoUrl": { "type": "string", "nullable": true },
-      "websiteUrl": { "type": "string", "nullable": true },
+      "slug": { "type": "string", "maxLength": 150, "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+      "name": { "type": "string", "minLength": 2, "maxLength": 200 },
+      "logoUrl": { "type": "string", "nullable": true, "maxLength": 2000, "format": "uri" },
+      "websiteUrl": { "type": "string", "nullable": true, "maxLength": 2000, "format": "uri" },
       "isActive": { "type": "boolean" },
-      "sortOrder": { "type": "number" }
+      "sortOrder": { "type": "integer", "minimum": 0, "maximum": 100000 }
     },
     "required": ["slug", "name"]
   },
@@ -216,40 +224,40 @@
   "PlacePatchDto": {
     "type": "object",
     "properties": {
-      "name": { "type": "string" },
-      "slug": { "type": "string" },
+      "name": { "type": "string", "minLength": 2, "maxLength": 200 },
+      "slug": { "type": "string", "maxLength": 150, "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
       "type": {
         "type": "string",
         "enum": ["ORPHANAGE", "BOARDING_SCHOOL", "ADULT_BOARDING", "YARD_PROGRAM"]
       },
       "regionId": { "type": "string", "format": "uuid" },
-      "city": { "type": "string" },
-      "district": { "type": "string", "nullable": true },
-      "address": { "type": "string", "nullable": true },
-      "description": { "type": "string" },
-      "privateNotes": { "type": "string" },
-      "beneficiariesCount": { "type": "number", "default": 0 },
-      "coverImageUrl": { "type": "string", "nullable": true },
+      "city": { "type": "string", "minLength": 1, "maxLength": 160 },
+      "district": { "type": "string", "nullable": true, "maxLength": 200 },
+      "address": { "type": "string", "nullable": true, "maxLength": 500 },
+      "description": { "type": "string", "maxLength": 20000 },
+      "privateNotes": { "type": "string", "maxLength": 20000 },
+      "beneficiariesCount": { "type": "integer", "default": 0, "minimum": 0, "maximum": 1000000 },
+      "coverImageUrl": { "type": "string", "nullable": true, "maxLength": 2000, "format": "uri" },
       "isActive": { "type": "boolean", "default": true }
     }
   },
   "PlaceWriteDto": {
     "type": "object",
     "properties": {
-      "name": { "type": "string" },
-      "slug": { "type": "string" },
+      "name": { "type": "string", "minLength": 2, "maxLength": 200 },
+      "slug": { "type": "string", "maxLength": 150, "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
       "type": {
         "type": "string",
         "enum": ["ORPHANAGE", "BOARDING_SCHOOL", "ADULT_BOARDING", "YARD_PROGRAM"]
       },
       "regionId": { "type": "string", "format": "uuid" },
-      "city": { "type": "string" },
-      "district": { "type": "string", "nullable": true },
-      "address": { "type": "string", "nullable": true },
-      "description": { "type": "string" },
-      "privateNotes": { "type": "string" },
-      "beneficiariesCount": { "type": "number", "default": 0 },
-      "coverImageUrl": { "type": "string", "nullable": true },
+      "city": { "type": "string", "minLength": 1, "maxLength": 160 },
+      "district": { "type": "string", "nullable": true, "maxLength": 200 },
+      "address": { "type": "string", "nullable": true, "maxLength": 500 },
+      "description": { "type": "string", "maxLength": 20000 },
+      "privateNotes": { "type": "string", "maxLength": 20000 },
+      "beneficiariesCount": { "type": "integer", "default": 0, "minimum": 0, "maximum": 1000000 },
+      "coverImageUrl": { "type": "string", "nullable": true, "maxLength": 2000, "format": "uri" },
       "isActive": { "type": "boolean", "default": true }
     },
     "required": ["name", "slug", "type", "regionId", "city", "description"]
@@ -257,9 +265,9 @@
   "PressWriteDto": {
     "type": "object",
     "properties": {
-      "title": { "type": "string" },
-      "outlet": { "type": "string" },
-      "url": { "type": "string" },
+      "title": { "type": "string", "minLength": 2, "maxLength": 200 },
+      "outlet": { "type": "string", "minLength": 2, "maxLength": 200 },
+      "url": { "type": "string", "maxLength": 2000, "format": "uri" },
       "publishedAt": { "type": "string", "format": "date-time" }
     },
     "required": ["title", "outlet", "url", "publishedAt"]
@@ -267,29 +275,39 @@
   "ProjectWriteDto": {
     "type": "object",
     "properties": {
-      "slug": { "type": "string" },
-      "title": { "type": "string" },
-      "bodyHtml": { "type": "string" },
-      "coverUrl": { "type": "string", "nullable": true },
+      "slug": { "type": "string", "maxLength": 150, "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+      "title": { "type": "string", "minLength": 2, "maxLength": 200 },
+      "bodyHtml": { "type": "string", "maxLength": 100000 },
+      "coverUrl": { "type": "string", "nullable": true, "maxLength": 2000, "format": "uri" },
       "isActive": { "type": "boolean" }
     },
     "required": ["slug", "title", "bodyHtml"]
   },
   "RegionDto": {
     "type": "object",
-    "properties": { "name": { "type": "string" }, "slug": { "type": "string" } },
+    "properties": {
+      "name": { "type": "string", "minLength": 2, "maxLength": 160 },
+      "slug": { "type": "string", "maxLength": 100, "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+    },
     "required": ["name", "slug"]
   },
   "RegionPatchDto": {
     "type": "object",
-    "properties": { "name": { "type": "string" }, "slug": { "type": "string" } }
+    "properties": {
+      "name": { "type": "string", "minLength": 2, "maxLength": 160 },
+      "slug": { "type": "string", "maxLength": 100, "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
+    }
   },
   "ReportWriteDto": {
     "type": "object",
     "properties": {
-      "text": { "type": "string" },
-      "hoursSpent": { "type": "number" },
-      "photos": { "type": "array", "items": { "$ref": "#/components/schemas/PhotoReferenceDto" } }
+      "text": { "type": "string", "minLength": 20, "maxLength": 30000 },
+      "hoursSpent": { "type": "number", "minimum": 0, "maximum": 1000 },
+      "photos": {
+        "maxItems": 30,
+        "type": "array",
+        "items": { "$ref": "#/components/schemas/PhotoReferenceDto" }
+      }
     },
     "required": ["text", "hoursSpent"]
   },
@@ -305,7 +323,11 @@
   "SettingsWriteDto": {
     "type": "object",
     "properties": {
-      "items": { "type": "array", "items": { "$ref": "#/components/schemas/SettingDto" } }
+      "items": {
+        "maxItems": 16,
+        "type": "array",
+        "items": { "$ref": "#/components/schemas/SettingDto" }
+      }
     },
     "required": ["items"]
   },
@@ -325,9 +347,11 @@
         ]
       },
       "value": {
-        "type": "number",
+        "type": "integer",
         "nullable": true,
-        "description": "null возвращает счетчик к расчету из БД."
+        "description": "null возвращает счетчик к расчету из БД.",
+        "minimum": 0,
+        "maximum": 2147483647
       }
     },
     "required": ["key", "value"]
@@ -336,12 +360,12 @@
     "type": "object",
     "properties": {
       "placeId": { "type": "string", "format": "uuid" },
-      "title": { "type": "string" },
-      "description": { "type": "string" },
+      "title": { "type": "string", "minLength": 2, "maxLength": 200 },
+      "description": { "type": "string", "maxLength": 20000 },
       "startsAt": { "type": "string", "format": "date-time" },
       "endsAt": { "type": "string", "format": "date-time" },
-      "meetingPoint": { "type": "string" },
-      "capacity": { "type": "number", "minimum": 1, "maximum": 1000 }
+      "meetingPoint": { "type": "string", "minLength": 2, "maxLength": 500 },
+      "capacity": { "type": "integer", "minimum": 1, "maximum": 1000 }
     },
     "required": [
       "placeId",
@@ -357,12 +381,12 @@
     "type": "object",
     "properties": {
       "placeId": { "type": "string", "format": "uuid" },
-      "title": { "type": "string" },
-      "description": { "type": "string" },
+      "title": { "type": "string", "minLength": 2, "maxLength": 200 },
+      "description": { "type": "string", "maxLength": 20000 },
       "startsAt": { "type": "string", "format": "date-time" },
       "endsAt": { "type": "string", "format": "date-time" },
-      "meetingPoint": { "type": "string" },
-      "capacity": { "type": "number", "minimum": 1, "maximum": 1000 }
+      "meetingPoint": { "type": "string", "minLength": 2, "maxLength": 500 },
+      "capacity": { "type": "integer", "minimum": 1, "maximum": 1000 }
     }
   },
   "TripStatusDto": {
@@ -372,29 +396,29 @@
         "type": "string",
         "enum": ["DRAFT", "OPEN", "CLOSED", "DONE", "REPORTED", "CANCELLED"]
       },
-      "cancelReason": { "type": "string" }
+      "cancelReason": { "type": "string", "minLength": 3, "maxLength": 2000 }
     },
     "required": ["status"]
   },
   "UserCreateDto": {
     "type": "object",
     "properties": {
-      "telegramId": { "type": "string" },
-      "fullName": { "type": "string" },
+      "telegramId": { "type": "string", "pattern": "^[1-9]\\d{0,18}$" },
+      "fullName": { "type": "string", "minLength": 2, "maxLength": 160 },
       "role": { "type": "string", "enum": ["CANDIDATE", "VOLUNTEER", "ADMIN"] },
-      "email": { "type": "string", "nullable": true }
+      "email": { "type": "string", "nullable": true, "maxLength": 254, "format": "email" }
     },
     "required": ["telegramId", "fullName"]
   },
   "UserPatchDto": {
     "type": "object",
     "properties": {
-      "fullName": { "type": "string" },
-      "nickname": { "type": "string", "nullable": true },
-      "city": { "type": "string", "nullable": true },
+      "fullName": { "type": "string", "minLength": 2, "maxLength": 160 },
+      "nickname": { "type": "string", "nullable": true, "maxLength": 100 },
+      "city": { "type": "string", "nullable": true, "maxLength": 160 },
       "role": { "type": "string", "enum": ["CANDIDATE", "VOLUNTEER", "ADMIN"] },
       "isBlocked": { "type": "boolean" },
-      "email": { "type": "string", "nullable": true }
+      "email": { "type": "string", "nullable": true, "maxLength": 254, "format": "email" }
     }
   }
 }

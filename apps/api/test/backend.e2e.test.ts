@@ -167,6 +167,43 @@ async function administrator() {
     userId: (await prisma.user.findUniqueOrThrow({ where: { telegramId: BigInt(id) } })).id,
   };
 }
+
+describe('Strict administrative dates over HTTP', () => {
+  it('rejects nonexistent days, missing timezones and null PATCH dates before changing stored data', async () => {
+    const admin = await administrator();
+    const body = {
+      type: 'CLUB_EVENT',
+      title: 'Проверка дат',
+      description: '',
+      location: 'Тестовая площадка',
+      startsAt: '2028-02-29T12:00:00+03:00',
+      endsAt: '2028-02-29T13:00:00+03:00',
+    };
+    for (const startsAt of [
+      '2028-02-31T12:00:00Z',
+      '2026-02-29T12:00:00Z',
+      '2028-02-29',
+      '2028-02-29T12:00:00',
+    ]) {
+      const response = await req('post', '/admin/events')
+        .set('Authorization', `Bearer ${admin.access}`)
+        .send({ ...body, startsAt });
+      expect(response.status).toBe(400);
+      expect(response.body.code).toBe('VALIDATION_ERROR');
+    }
+    const created = await req('post', '/admin/events')
+      .set('Authorization', `Bearer ${admin.access}`)
+      .send(body);
+    expect(created.status).toBe(201);
+    const patch = await req('patch', `/admin/events/${created.body.id}`)
+      .set('Authorization', `Bearer ${admin.access}`)
+      .send({ startsAt: null });
+    expect(patch.status).toBe(400);
+    expect(patch.body.code).toBe('VALIDATION_ERROR');
+    const saved = await prisma.event.findUniqueOrThrow({ where: { id: created.body.id } });
+    expect(saved.startsAt.toISOString()).toBe('2028-02-29T09:00:00.000Z');
+  });
+});
 async function fixturePlace(userId: string) {
   const region = await prisma.region.create({
     data: { name: 'Тестовый регион', slug: `region-${++sequence}` },

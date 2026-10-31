@@ -1,3 +1,4 @@
+import { IsDateTime } from '../common/date-time.validator.js';
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
@@ -5,12 +6,12 @@ import {
   ArrayMaxSize,
   IsArray,
   IsBoolean,
-  IsDateString,
   IsEnum,
   IsInt,
   IsNumber,
   IsOptional,
   IsString,
+  ValidateIf,
   IsUrl,
   IsUUID,
   Matches,
@@ -32,47 +33,81 @@ import {
 import { PageQueryDto } from '../common/query.dto.js';
 
 export class RegionDto {
-  @ApiProperty() @IsString() @MinLength(2) @MaxLength(160) name!: string;
-  @ApiProperty() @IsString() @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/) @MaxLength(100) slug!: string;
+  @ApiProperty({ minLength: 2, maxLength: 160 })
+  @IsString()
+  @MinLength(2)
+  @MaxLength(160)
+  name!: string;
+  @ApiProperty({ maxLength: 100, pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$' })
+  @IsString()
+  @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+  @MaxLength(100)
+  slug!: string;
 }
 export class RegionResponseDto extends RegionDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
 }
 export class PlaceWriteDto {
-  @ApiProperty() @IsString() @MinLength(2) @MaxLength(200) name!: string;
-  @ApiProperty() @IsString() @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/) @MaxLength(150) slug!: string;
+  @ApiProperty({ minLength: 2, maxLength: 200 })
+  @IsString()
+  @MinLength(2)
+  @MaxLength(200)
+  name!: string;
+  @ApiProperty({ maxLength: 150, pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$' })
+  @IsString()
+  @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+  @MaxLength(150)
+  slug!: string;
   @ApiProperty({ enum: PlaceType }) @IsEnum(PlaceType) type!: PlaceType;
   @ApiProperty({ format: 'uuid' }) @IsUUID() regionId!: string;
-  @ApiProperty() @IsString() @MinLength(1) @MaxLength(160) city!: string;
-  @ApiPropertyOptional({ nullable: true, type: String })
+  @ApiProperty({ minLength: 1, maxLength: 160 })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(160)
+  city!: string;
+  @ApiPropertyOptional({ nullable: true, type: String, maxLength: 200 })
   @IsOptional()
   @IsString()
   @MaxLength(200)
   district?: string | null;
-  @ApiPropertyOptional({ nullable: true, type: String })
+  @ApiPropertyOptional({ nullable: true, type: String, maxLength: 500 })
   @IsOptional()
   @IsString()
   @MaxLength(500)
   address?: string | null;
-  @ApiProperty() @IsString() @MaxLength(20000) description!: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(20000) privateNotes?: string;
-  @ApiPropertyOptional({ default: 0 })
-  @IsOptional()
+  @ApiProperty({ maxLength: 20000 }) @IsString() @MaxLength(20000) description!: string;
+  @ApiPropertyOptional({ maxLength: 20000 })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsString()
+  @MaxLength(20000)
+  privateNotes?: string;
+  @ApiPropertyOptional({ default: 0, minimum: 0, maximum: 1000000, type: 'integer' })
+  @ValidateIf((_object, value) => value !== undefined)
   @IsInt()
   @Min(0)
   @Max(1000000)
   beneficiariesCount?: number;
-  @ApiPropertyOptional({ nullable: true, type: String })
+  @ApiPropertyOptional({ nullable: true, type: String, maxLength: 2000, format: 'uri' })
   @IsOptional()
   @IsUrl({ require_tld: false, protocols: ['http', 'https'], require_protocol: true })
+  @MaxLength(2000)
   coverImageUrl?: string | null;
-  @ApiPropertyOptional({ default: true }) @IsOptional() @IsBoolean() isActive?: boolean;
+  @ApiPropertyOptional({ default: true })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsBoolean()
+  isActive?: boolean;
 }
-export class PlacePatchDto extends PartialType(PlaceWriteDto) {}
-export class RegionPatchDto extends PartialType(RegionDto) {}
+export class PlacePatchDto extends PartialType(PlaceWriteDto, { skipNullProperties: false }) {}
+export class RegionPatchDto extends PartialType(RegionDto, { skipNullProperties: false }) {}
 export class PlaceQueryDto extends PageQueryDto {
-  @ApiPropertyOptional({ format: 'uuid' }) @IsOptional() @IsUUID() regionId?: string;
-  @ApiPropertyOptional({ enum: PlaceType }) @IsOptional() @IsEnum(PlaceType) placeType?: PlaceType;
+  @ApiPropertyOptional({ format: 'uuid' })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsUUID()
+  regionId?: string;
+  @ApiPropertyOptional({ enum: PlaceType })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsEnum(PlaceType)
+  placeType?: PlaceType;
 }
 export class PlaceResponseDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
@@ -101,37 +136,66 @@ export class PlaceResponseDto {
   @ApiPropertyOptional({ minimum: 0 }) needsTotal?: number;
 }
 export class NeedQueryDto extends PageQueryDto {
-  @ApiPropertyOptional({ format: 'uuid' }) @IsOptional() @IsUUID() placeId?: string;
+  @ApiPropertyOptional({ format: 'uuid' })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsUUID()
+  placeId?: string;
 }
 export class TripQueryDto extends PlaceQueryDto {
   @ApiPropertyOptional({ enum: TripStatus, default: TripStatus.OPEN })
-  @IsOptional()
+  @ValidateIf((_object, value) => value !== undefined)
   @IsEnum(TripStatus)
   status: TripStatus = TripStatus.OPEN;
-  @ApiPropertyOptional({ format: 'date-time' }) @IsOptional() @IsDateString() dateFrom?: string;
-  @ApiPropertyOptional({ format: 'date-time' }) @IsOptional() @IsDateString() dateTo?: string;
+  @ApiPropertyOptional({ format: 'date-time' })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsDateTime()
+  dateFrom?: string;
+  @ApiPropertyOptional({ format: 'date-time' })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsDateTime()
+  dateTo?: string;
 }
 export class TripCreateDto {
   @ApiProperty({ format: 'uuid' }) @IsUUID() placeId!: string;
-  @ApiProperty() @IsString() @MinLength(2) @MaxLength(200) title!: string;
-  @ApiProperty() @IsString() @MaxLength(20000) description!: string;
-  @ApiProperty({ format: 'date-time' }) @IsDateString() startsAt!: string;
-  @ApiProperty({ format: 'date-time' }) @IsDateString() endsAt!: string;
-  @ApiProperty() @IsString() @MinLength(2) @MaxLength(500) meetingPoint!: string;
-  @ApiProperty({ minimum: 1, maximum: 1000 }) @IsInt() @Min(1) @Max(1000) capacity!: number;
+  @ApiProperty({ minLength: 2, maxLength: 200 })
+  @IsString()
+  @MinLength(2)
+  @MaxLength(200)
+  title!: string;
+  @ApiProperty({ maxLength: 20000 }) @IsString() @MaxLength(20000) description!: string;
+  @ApiProperty({ format: 'date-time' })
+  @IsDateTime()
+  startsAt!: string;
+  @ApiProperty({ format: 'date-time' })
+  @IsDateTime()
+  endsAt!: string;
+  @ApiProperty({ minLength: 2, maxLength: 500 })
+  @IsString()
+  @MinLength(2)
+  @MaxLength(500)
+  meetingPoint!: string;
+  @ApiProperty({ minimum: 1, maximum: 1000, type: 'integer' })
+  @IsInt()
+  @Min(1)
+  @Max(1000)
+  capacity!: number;
 }
-export class TripPatchDto extends PartialType(TripCreateDto) {}
+export class TripPatchDto extends PartialType(TripCreateDto, { skipNullProperties: false }) {}
 export class TripStatusDto {
   @ApiProperty({ enum: TripStatus }) @IsEnum(TripStatus) status!: TripStatus;
-  @ApiPropertyOptional()
-  @IsOptional()
+  @ApiPropertyOptional({ minLength: 3, maxLength: 2000 })
+  @ValidateIf((_object, value) => value !== undefined)
   @IsString()
   @MinLength(3)
   @MaxLength(2000)
   cancelReason?: string;
 }
 export class TripRegistrationDto {
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(1000) comment?: string;
+  @ApiPropertyOptional({ maxLength: 1000 })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsString()
+  @MaxLength(1000)
+  comment?: string;
 }
 export class RegistrationStatusDto {
   @ApiProperty({ enum: RegistrationStatus })
@@ -162,13 +226,23 @@ export class CuratorRegistrationDto extends RegistrationResponseDto {
   @ApiProperty({ nullable: true, type: String }) phone!: string | null;
 }
 export class NeedWriteDto {
-  @ApiPropertyOptional({ format: 'uuid' }) @IsOptional() @IsUUID() id?: string;
-  @ApiProperty() @IsString() @MinLength(2) @MaxLength(200) title!: string;
-  @ApiProperty() @IsString() @MaxLength(2000) description!: string;
-  @ApiPropertyOptional({ default: true }) @IsOptional() @IsBoolean() isActive?: boolean;
+  @ApiPropertyOptional({ format: 'uuid' })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsUUID()
+  id?: string;
+  @ApiProperty({ minLength: 2, maxLength: 200 })
+  @IsString()
+  @MinLength(2)
+  @MaxLength(200)
+  title!: string;
+  @ApiProperty({ maxLength: 2000 }) @IsString() @MaxLength(2000) description!: string;
+  @ApiPropertyOptional({ default: true })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsBoolean()
+  isActive?: boolean;
 }
 export class NeedsWriteDto {
-  @ApiProperty({ type: [NeedWriteDto] })
+  @ApiProperty({ type: [NeedWriteDto], maxItems: 100 })
   @IsArray()
   @ArrayMaxSize(100)
   @ValidateNested({ each: true })
@@ -184,12 +258,23 @@ export class NeedResponseDto {
 }
 export class PhotoReferenceDto {
   @ApiProperty({ format: 'uuid' }) @IsUUID() uploadId!: string;
-  @ApiPropertyOptional({ default: false }) @IsOptional() @IsBoolean() isPublic: boolean = false;
+  @ApiPropertyOptional({ default: false })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsBoolean()
+  isPublic: boolean = false;
 }
 export class ReportWriteDto {
-  @ApiProperty() @IsString() @MinLength(20) @MaxLength(30000) text!: string;
-  @ApiProperty() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(1000) hoursSpent!: number;
-  @ApiPropertyOptional({ type: [PhotoReferenceDto] })
+  @ApiProperty({ minLength: 20, maxLength: 30000 })
+  @IsString()
+  @MinLength(20)
+  @MaxLength(30000)
+  text!: string;
+  @ApiProperty({ minimum: 0, maximum: 1000 })
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(1000)
+  hoursSpent!: number;
+  @ApiPropertyOptional({ type: [PhotoReferenceDto], maxItems: 30 })
   @IsArray()
   @ArrayMaxSize(30)
   @ValidateNested({ each: true })
@@ -224,11 +309,15 @@ export class QuestionnaireDto {
 }
 export class ApplicationDecisionDto {
   @ApiProperty({ enum: ApplicationStatus }) @IsEnum(ApplicationStatus) status!: ApplicationStatus;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(5000) comment?: string;
+  @ApiPropertyOptional({ maxLength: 5000 })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsString()
+  @MaxLength(5000)
+  comment?: string;
 }
 export class ApplicationQueryDto extends PageQueryDto {
   @ApiPropertyOptional({ enum: ApplicationStatus })
-  @IsOptional()
+  @ValidateIf((_object, value) => value !== undefined)
   @IsEnum(ApplicationStatus)
   status?: ApplicationStatus;
 }
@@ -242,7 +331,9 @@ export class ApplicationResponseDto {
   @ApiProperty() hasOpenDayAttended!: boolean;
 }
 export class OpenDayWriteDto {
-  @ApiProperty({ format: 'date-time' }) @IsDateString() startsAt!: string;
+  @ApiProperty({ format: 'date-time' })
+  @IsDateTime()
+  startsAt!: string;
   @ApiProperty({ minLength: 2, maxLength: 500 })
   @IsString()
   @MinLength(2)
@@ -253,17 +344,18 @@ export class OpenDayWriteDto {
   @Min(1)
   @Max(1000)
   capacity!: number;
-  @ApiPropertyOptional({ nullable: true, type: String })
+  @ApiPropertyOptional({ nullable: true, type: String, maxLength: 2000, format: 'uri' })
   @IsOptional()
   @IsUrl({ require_tld: false, protocols: ['http', 'https'], require_protocol: true })
+  @MaxLength(2000)
   registrationUrl?: string | null;
   @ApiPropertyOptional({ maxLength: 5000 })
-  @IsOptional()
+  @ValidateIf((_object, value) => value !== undefined)
   @IsString()
   @MaxLength(5000)
   notes?: string;
 }
-export class OpenDayPatchDto extends PartialType(OpenDayWriteDto) {}
+export class OpenDayPatchDto extends PartialType(OpenDayWriteDto, { skipNullProperties: false }) {}
 export class OpenDayResponseDto extends OpenDayWriteDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
 }
@@ -286,8 +378,12 @@ export class EventWriteDto {
   @MaxLength(200)
   title!: string;
   @ApiProperty({ maxLength: 20000 }) @IsString() @MaxLength(20000) description!: string;
-  @ApiProperty({ format: 'date-time' }) @IsDateString() startsAt!: string;
-  @ApiProperty({ format: 'date-time' }) @IsDateString() endsAt!: string;
+  @ApiProperty({ format: 'date-time' })
+  @IsDateTime()
+  startsAt!: string;
+  @ApiProperty({ format: 'date-time' })
+  @IsDateTime()
+  endsAt!: string;
   @ApiProperty({ minLength: 2, maxLength: 500 })
   @IsString()
   @MinLength(2)
@@ -299,19 +395,34 @@ export class EventWriteDto {
   @Min(1)
   @Max(1000)
   capacity?: number | null;
-  @ApiPropertyOptional({ default: true }) @IsOptional() @IsBoolean() isPublic?: boolean;
-  @ApiPropertyOptional({ default: false }) @IsOptional() @IsBoolean() volunteersOnly?: boolean;
+  @ApiPropertyOptional({ default: true })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsBoolean()
+  isPublic?: boolean;
+  @ApiPropertyOptional({ default: false })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsBoolean()
+  volunteersOnly?: boolean;
 }
-export class EventPatchDto extends PartialType(EventWriteDto) {}
+export class EventPatchDto extends PartialType(EventWriteDto, { skipNullProperties: false }) {}
 export class EventResponseDto extends EventWriteDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
 }
 export class EventQueryDto extends PageQueryDto {
-  @ApiPropertyOptional({ enum: EventType }) @IsOptional() @IsEnum(EventType) type?: EventType;
+  @ApiPropertyOptional({ enum: EventType })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsEnum(EventType)
+  type?: EventType;
 }
 export class CalendarQueryDto extends PageQueryDto {
-  @ApiPropertyOptional({ format: 'date-time' }) @IsOptional() @IsDateString() from?: string;
-  @ApiPropertyOptional({ format: 'date-time' }) @IsOptional() @IsDateString() to?: string;
+  @ApiPropertyOptional({ format: 'date-time' })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsDateTime()
+  from?: string;
+  @ApiPropertyOptional({ format: 'date-time' })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsDateTime()
+  to?: string;
 }
 export class CalendarItemDto {
   @ApiProperty({ format: 'uuid' }) id!: string;

@@ -158,20 +158,25 @@ export class StorageService implements OnModuleInit, OnModuleDestroy, OnApplicat
     if (!value.startsWith('s3://')) {
       let parsed: URL;
       try {
-        parsed = new URL(value);
+        parsed = new URL(value, this.env.WEB_URL);
         if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error();
       } catch {
         throw new ApiException(ErrorCode.VALIDATION_ERROR);
       }
-      const id = parsed.pathname.startsWith('/api/v1/files/')
-        ? parsed.pathname.slice('/api/v1/files/'.length)
-        : null;
+      let pathname: string;
+      try {
+        pathname = decodeURIComponent(parsed.pathname);
+      } catch {
+        throw new ApiException(ErrorCode.VALIDATION_ERROR);
+      }
       if (
-        id &&
+        /^\/api\/v1\/files(?:\/|$)/i.test(pathname) &&
         [new URL(this.env.WEB_URL).origin, new URL(this.env.PUBLIC_API_URL).origin].includes(
           parsed.origin,
         )
       ) {
+        const id = /^\/api\/v1\/files\/([^/]+)\/?$/i.exec(pathname)?.[1];
+        if (!id || !isUUID(id)) throw new ApiException(ErrorCode.VALIDATION_ERROR);
         const asset = await this.prisma.uploadAsset.findUnique({ where: { id } });
         if (
           !asset ||

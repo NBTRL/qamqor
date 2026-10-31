@@ -6,6 +6,7 @@ import {
   IsEnum,
   IsOptional,
   IsString,
+  ValidateIf,
   IsUUID,
   Matches,
   MaxLength,
@@ -17,43 +18,69 @@ import { MeResponseDto } from '../auth/auth.dto.js';
 import { ApplicationResponseDto } from '../club/club.dto.js';
 
 export class UserCreateDto {
-  @ApiProperty({ type: String }) @IsString() @Matches(/^[1-9]\d{0,18}$/) telegramId!: string;
-  @ApiProperty() @IsString() @MinLength(2) @MaxLength(160) fullName!: string;
-  @ApiPropertyOptional({ enum: UserRole }) @IsOptional() @IsEnum(UserRole) role?: UserRole;
-  @ApiPropertyOptional({ nullable: true, type: String })
+  @ApiProperty({ type: String, pattern: '^[1-9]\\d{0,18}$' })
+  @IsString()
+  @Matches(/^[1-9]\d{0,18}$/)
+  telegramId!: string;
+  @ApiProperty({ minLength: 2, maxLength: 160 })
+  @IsString()
+  @MinLength(2)
+  @MaxLength(160)
+  fullName!: string;
+  @ApiPropertyOptional({ enum: UserRole })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsEnum(UserRole)
+  role?: UserRole;
+  @ApiPropertyOptional({ nullable: true, type: String, maxLength: 254, format: 'email' })
   @IsOptional()
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim().toLowerCase() : value,
   )
   @IsEmail()
+  @MaxLength(254)
   email?: string | null;
 }
 export class UserPatchDto {
-  @ApiPropertyOptional() @IsOptional() @IsString() @MinLength(2) @MaxLength(160) fullName?: string;
-  @ApiPropertyOptional({ nullable: true, type: String })
+  @ApiPropertyOptional({ minLength: 2, maxLength: 160 })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsString()
+  @MinLength(2)
+  @MaxLength(160)
+  fullName?: string;
+  @ApiPropertyOptional({ nullable: true, type: String, maxLength: 100 })
   @IsOptional()
   @IsString()
   @MaxLength(100)
   nickname?: string | null;
-  @ApiPropertyOptional({ nullable: true, type: String })
+  @ApiPropertyOptional({ nullable: true, type: String, maxLength: 160 })
   @IsOptional()
   @IsString()
   @MaxLength(160)
   city?: string | null;
-  @ApiPropertyOptional({ enum: UserRole }) @IsOptional() @IsEnum(UserRole) role?: UserRole;
-  @ApiPropertyOptional() @IsOptional() @IsBoolean() isBlocked?: boolean;
-  @ApiPropertyOptional({ nullable: true, type: String })
+  @ApiPropertyOptional({ enum: UserRole })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsEnum(UserRole)
+  role?: UserRole;
+  @ApiPropertyOptional()
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsBoolean()
+  isBlocked?: boolean;
+  @ApiPropertyOptional({ nullable: true, type: String, maxLength: 254, format: 'email' })
   @IsOptional()
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim().toLowerCase() : value,
   )
   @IsEmail()
+  @MaxLength(254)
   email?: string | null;
 }
 export class UserQueryDto extends PageQueryDto {
-  @ApiPropertyOptional({ enum: UserRole }) @IsOptional() @IsEnum(UserRole) role?: UserRole;
+  @ApiPropertyOptional({ enum: UserRole })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsEnum(UserRole)
+  role?: UserRole;
   @ApiPropertyOptional()
-  @IsOptional()
+  @ValidateIf((_object, value) => value !== undefined)
   @Transform(({ value }: { value: unknown }) =>
     value === 'true' ? true : value === 'false' ? false : value,
   )

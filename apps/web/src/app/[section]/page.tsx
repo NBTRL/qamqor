@@ -8,6 +8,7 @@ import { ContactForm, OpenDays, StepList, PlaceCard } from '@/components/public-
 import { ButtonLink, Empty, RichText, ErrorNotice } from '@/components/ui';
 import { date } from '@/lib/format';
 import { Calendar } from '@/components/calendar';
+import { hasRichTextContent } from '@club/shared';
 export async function generateMetadata({ params }: { params: Promise<{ section: string }> }) {
   const { section } = await params;
   const title = sections[section as keyof typeof sections];
@@ -33,7 +34,7 @@ export default async function Page({
   if (!title) notFound();
   const page = Math.max(1, Number((await searchParams).page) || 1);
   const api = await serverApi();
-  const managed = ['kontakty', 'policy', 'donation'].includes(section)
+  const managed = ['kontakty', 'policy', 'donation', 'o-klube-volonterov'].includes(section)
     ? await capture(
         (async () => {
           const response = await api.GET('/api/v1/pages/{slug}', {
@@ -48,7 +49,7 @@ export default async function Page({
     <div className="notice" role="alert">
       Не удалось загрузить содержимое страницы. Обновите страницу и повторите попытку.
     </div>
-  ) : managed?.data?.bodyHtml.trim() ? (
+  ) : managed?.data && hasRichTextContent(managed.data.bodyHtml) ? (
     <RichText html={managed.data.bodyHtml} />
   ) : null;
   let content;
@@ -109,10 +110,7 @@ export default async function Page({
       </>
     );
   else if (section === 'o-klube-volonterov') {
-    const response = await api.GET('/api/v1/pages/{slug}', { params: { path: { slug: section } } });
-    content = response.data ? (
-      <RichText html={response.data.bodyHtml} />
-    ) : (
+    content = managedContent ?? (
       <>
         <p>
           Клуб волонтеров — сообщество людей, которые помогают детям и взрослым в учреждениях. Мы

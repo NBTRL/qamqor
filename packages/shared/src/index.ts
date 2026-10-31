@@ -6,3 +6,4 @@ export * from './errors.js';
 export * from './messages.js';
 export * from './permissions.js';
 export * from './schemas.js';
+export * from './rich-text.js';

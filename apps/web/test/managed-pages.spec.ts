@@ -8,7 +8,7 @@ test.beforeEach(async ({ request, page }) => {
     .addCookies([{ name: 'qa_cms_fixture', value: randomUUID(), domain: 'localhost', path: '/' }]);
   await request.post(fixture + '/__scenario', { data: { mode: 'ready' } });
 });
-for (const slug of ['policy', 'donation', 'kontakty']) {
+for (const slug of ['policy', 'donation', 'kontakty', 'o-klube-volonterov']) {
   test(`CMS content is visible on ${slug}`, async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 900 });
     await page.goto('/' + slug);
@@ -25,21 +25,38 @@ for (const slug of ['policy', 'donation', 'kontakty']) {
     );
   });
 }
-test('an unavailable CMS shows a loading error instead of a missing-policy placeholder', async ({
-  page,
-  request,
-}) => {
-  await request.post(fixture + '/__scenario', { data: { mode: 'error' } });
-  await page.goto('/policy');
-  await expect(page.getByRole('main').getByRole('alert')).toHaveText(
-    'Не удалось загрузить содержимое страницы. Обновите страницу и повторите попытку.',
-  );
-  await expect(page.getByRole('heading', { name: 'Данные в учебном проекте' })).toHaveCount(0);
-});
+for (const slug of ['policy', 'donation', 'kontakty', 'o-klube-volonterov']) {
+  test(`an unavailable CMS shows a loading error on ${slug}`, async ({ page, request }) => {
+    await request.post(fixture + '/__scenario', { data: { mode: 'error' } });
+    await page.goto('/' + slug);
+    await expect(page.getByRole('main').getByRole('alert')).toHaveText(
+      'Не удалось загрузить содержимое страницы. Обновите страницу и повторите попытку.',
+    );
+    await expect(page.getByRole('heading', { name: 'Данные в учебном проекте' })).toHaveCount(0);
+    await expect(
+      page.getByRole('main').getByRole('link', { name: 'Присоединиться', exact: true }),
+    ).toHaveCount(0);
+  });
+}
+for (const mode of ['missing', 'empty']) {
+  test(`the about page has readable fallback content when CMS is ${mode}`, async ({
+    page,
+    request,
+  }) => {
+    await request.post(fixture + '/__scenario', { data: { mode } });
+    await page.goto('/o-klube-volonterov');
+    await expect(
+      page.getByRole('main').getByText(/Клуб волонтеров — сообщество людей/),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('main').getByRole('link', { name: 'Присоединиться', exact: true }),
+    ).toBeVisible();
+  });
+}
 
 test.describe('CMS pages without JavaScript', () => {
   test.use({ javaScriptEnabled: false });
-  for (const slug of ['policy', 'donation', 'kontakty']) {
+  for (const slug of ['policy', 'donation', 'kontakty', 'o-klube-volonterov']) {
     test(`CMS text on ${slug} is readable without JavaScript`, async ({ page }) => {
       await page.setViewportSize({ width: 320, height: 900 });
       await page.goto('/' + slug);

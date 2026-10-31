@@ -36,8 +36,10 @@ class StatOverrideDto {
   @ApiProperty({ enum: STAT_KEYS }) @IsIn(STAT_KEYS) key!: (typeof STAT_KEYS)[number];
   @ApiProperty({
     nullable: true,
-    type: Number,
+    type: 'integer',
     description: 'null возвращает счетчик к расчету из БД.',
+    minimum: 0,
+    maximum: 2147483647,
   })
   @ValidateIf((_object, value) => value !== null)
   @IsInt()
@@ -46,7 +48,7 @@ class StatOverrideDto {
   value!: number | null;
 }
 class OverridesDto {
-  @ApiProperty({ type: [StatOverrideDto] })
+  @ApiProperty({ type: [StatOverrideDto], maxItems: STAT_KEYS.length })
   @IsArray()
   @ArrayMaxSize(STAT_KEYS.length)
   @ArrayUnique((item: StatOverrideDto) => item.key)

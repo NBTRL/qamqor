@@ -13,6 +13,7 @@ import { ErrorCode } from './errors.js';
 
 const unique = (items: readonly string[]) => new Set(items).size === items.length;
 export const emailSchema = z.string().trim().toLowerCase().max(254).pipe(z.email());
+export const dateTimeSchema = z.iso.datetime({ offset: true }).regex(/T\d{2}:\d{2}:\d{2}/);
 export const questionnaireSchema = z
   .object({
     motivation: z.string().trim().min(20, 'Расскажите о мотивации подробнее.').max(5000),
