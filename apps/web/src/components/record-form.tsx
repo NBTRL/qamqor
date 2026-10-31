@@ -1,6 +1,6 @@
 'use client';
 import dynamic from 'next/dynamic';
-import { Controller, useForm } from 'react-hook-form';
+import { Controller, useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
@@ -117,6 +117,7 @@ export function RecordForm({
     defaultValues: defaults,
   });
   const save = useMutation({ mutationFn: onSave, onSuccess: (data) => onDone?.(data) });
+  const mediaType = useWatch({ control: form.control, name: 'type' });
   const uploads = useUploadGuard();
   const lookups = useQuery({
     queryKey: ['form-lookups', schemaName],
@@ -279,21 +280,25 @@ export function RecordForm({
                             ? 'datetime-local'
                             : field.type === 'number' || field.type === 'integer'
                               ? 'number'
-                              : key === 'email'
+                              : field.format === 'email' || key === 'email'
                                 ? 'email'
-                                : key === 'telegramId'
-                                  ? 'text'
+                                : field.format === 'uri'
+                                  ? 'url'
                                   : 'text'
                         }
                         min={field.minimum}
                         max={field.maximum}
                         minLength={field.minLength}
                         maxLength={field.maxLength}
+                        pattern={field.pattern}
                         required={required}
                         step={field.type === 'number' ? 'any' : undefined}
                       />
                     )}
-                    {['coverUrl', 'coverImageUrl', 'logoUrl', 'url', 'fileUrl'].includes(key) && (
+                    {(['coverUrl', 'coverImageUrl', 'logoUrl', 'fileUrl'].includes(key) ||
+                      (key === 'url' &&
+                        schemaName === 'MediaItemWriteDto' &&
+                        mediaType === 'PHOTO')) && (
                       <Upload
                         purpose={key === 'fileUrl' ? 'CLUB_REPORT' : 'CONTENT'}
                         onUploaded={(upload) => control.onChange(upload.fileUrl)}

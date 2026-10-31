@@ -2,6 +2,7 @@ import { z } from 'zod';
 import definitions from './form-definitions.json';
 import type { components } from './api/schema';
 import { localDateTime } from './format';
+import { dateTimeSchema, telegramIdSchema } from '@club/shared';
 export type Definition = {
   type?: string;
   format?: string;
@@ -16,6 +17,8 @@ export type Definition = {
   maximum?: number;
   minLength?: number;
   maxLength?: number;
+  minItems?: number;
+  maxItems?: number;
   pattern?: string;
   default?: unknown;
 };
@@ -52,28 +55,49 @@ function valueSchema(raw: Definition): z.ZodType {
       shape[key] = field;
     }
     schema = z.object(shape).strict();
-  } else if (node.type === 'array') schema = z.array(valueSchema(node.items ?? {}));
-  else if (node.type === 'boolean') schema = z.boolean();
+  } else if (node.type === 'array') {
+    let array = z.array(valueSchema(node.items ?? {}));
+    if (node.minItems !== undefined) array = array.min(node.minItems);
+    if (node.maxItems !== undefined) array = array.max(node.maxItems);
+    schema = array;
+  } else if (node.type === 'boolean') schema = z.boolean();
   else if (node.type === 'number' || node.type === 'integer') {
     let number = z.coerce.number();
     if (node.type === 'integer') number = number.int();
     if (node.minimum !== undefined) number = number.min(node.minimum);
     if (node.maximum !== undefined) number = number.max(node.maximum);
-    schema = number;
+    schema = z.preprocess(
+      (value) =>
+        typeof value === 'number' || (typeof value === 'string' && value.trim())
+          ? value
+          : undefined,
+      number,
+    );
   } else {
     let text = z.string();
     if (node.format === 'uuid') text = text.uuid('Выберите запись из списка.');
+    if (node.format === 'email')
+      text = text.trim().toLowerCase().email('Введите корректный e-mail.');
     if (node.minLength !== undefined) text = text.min(node.minLength);
     if (node.maxLength !== undefined) text = text.max(node.maxLength);
     if (node.pattern) text = text.regex(new RegExp(node.pattern));
     schema = text;
+    if (node.format === 'uri')
+      schema = text.refine((value) => {
+        try {
+          const url = new URL(value);
+          return ['http:', 'https:'].includes(url.protocol) && Boolean(url.hostname);
+        } catch {
+          return false;
+        }
+      }, 'Введите ссылку с http:// или https://.');
     if (node.format === 'date-time')
       schema = z.preprocess(
         (value) =>
           typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)
             ? localDateTime(value)
             : value,
-        z.iso.datetime({ offset: true }),
+        dateTimeSchema,
       );
   }
   return node.nullable ? schema.nullable() : schema;
@@ -82,7 +106,27 @@ export function schemaFor<N extends keyof components['schemas'] & keyof typeof d
   name: N,
 ): z.ZodType<components['schemas'][N], components['schemas'][N]> {
   let schema = valueSchema(definition(name));
-  if (name === 'EventWriteDto' || name === 'EventPatchDto')
+  if (name === 'UserCreateDto')
+    schema = schema.refine(
+      (value) => telegramIdSchema.safeParse((value as Record<string, unknown>).telegramId).success,
+      { path: ['telegramId'], message: 'Telegram ID выходит за диапазон bigint.' },
+    );
+  if (name === 'DonationWriteDto')
+    schema = schema.refine(
+      (value) => {
+        const amount = (value as Record<string, unknown>).amount;
+        return (
+          typeof amount === 'string' &&
+          /^(?:0|[1-9]\d{0,11})(?:\.\d{1,2})?$/.test(amount) &&
+          Number(amount) > 0
+        );
+      },
+      {
+        path: ['amount'],
+        message: 'Укажите положительную сумму до 999999999999.99 с двумя знаками после запятой.',
+      },
+    );
+  if (['EventWriteDto', 'EventPatchDto', 'TripCreateDto', 'TripPatchDto'].includes(name))
     schema = schema.refine(
       (value) => {
         const event = value as Record<string, unknown>;

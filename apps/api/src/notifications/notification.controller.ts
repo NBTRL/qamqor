@@ -34,6 +34,8 @@ import { ApiErrorDto } from '../common/dto.js';
 import { ApiPage, OkDto, PageQueryDto, pageArgs, pageResult } from '../common/query.dto.js';
 import { ApiException } from '../common/api-exception.js';
 import { ErrorCode } from '@club/shared';
+import { lockActiveUser } from '../common/active-user.js';
+import type { Tx } from '../common/audit.service.js';
 
 export class NotificationQueryDto extends PageQueryDto {
   @ApiPropertyOptional({ enum: NotificationStatus })
@@ -66,7 +68,7 @@ class SettingDto {
   @ApiProperty() @IsBoolean() email!: boolean;
 }
 class SettingsWriteDto {
-  @ApiProperty({ type: [SettingDto] })
+  @ApiProperty({ type: [SettingDto], maxItems: NOTIFICATION_TYPES.length })
   @IsArray()
   @ArrayMaxSize(NOTIFICATION_TYPES.length)
   @ArrayUnique((item: SettingDto) => item.type)
@@ -75,8 +77,16 @@ class SettingsWriteDto {
   items!: SettingDto[];
 }
 class AuditQueryDto extends PageQueryDto {
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) entity?: string;
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) entityId?: string;
+  @ApiPropertyOptional({ maxLength: 100 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  entity?: string;
+  @ApiPropertyOptional({ maxLength: 100 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  entityId?: string;
   @ApiPropertyOptional({ format: 'uuid' }) @IsOptional() @IsUUID() actorId?: string;
 }
 class AuditResponseDto {
@@ -144,7 +154,13 @@ export class MyNotificationsController {
   @Get('notification-settings')
   @ApiPage(SettingDto)
   async settings(@CurrentUser() actor: Actor) {
-    const rows = await this.prisma.notificationSetting.findMany({ where: { userId: actor.id } });
+    return this.prisma.$transaction(async (tx) => {
+      await lockActiveUser(tx, actor.id);
+      return this.settingsSnapshot(tx, actor.id);
+    });
+  }
+  private async settingsSnapshot(tx: Tx, userId: string) {
+    const rows = await tx.notificationSetting.findMany({ where: { userId } });
     const items = NOTIFICATION_TYPES.map((type) => {
       const row = rows.find((item) => item.type === type);
       return { type, telegram: row?.telegram ?? true, email: row?.email ?? true };
@@ -154,16 +170,16 @@ export class MyNotificationsController {
   @Put('notification-settings')
   @ApiPage(SettingDto)
   async write(@CurrentUser() actor: Actor, @Body() dto: SettingsWriteDto) {
-    await this.prisma.$transaction(
-      dto.items.map((item) =>
-        this.prisma.notificationSetting.upsert({
+    return this.prisma.$transaction(async (tx) => {
+      await lockActiveUser(tx, actor.id);
+      for (const item of dto.items)
+        await tx.notificationSetting.upsert({
           where: { userId_type: { userId: actor.id, type: item.type } },
           create: { ...item, userId: actor.id },
           update: { telegram: item.telegram, email: item.email },
-        }),
-      ),
-    );
-    return this.settings(actor);
+        });
+      return this.settingsSnapshot(tx, actor.id);
+    });
   }
 }
 @ApiTags('admin')

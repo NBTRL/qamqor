@@ -3,7 +3,7 @@ import { getEnvironment } from '../config/environment.js';
 import { lockFileReferences, retainFileReferences } from '../storage/file-references.js';
 import { Injectable } from '@nestjs/common';
 import sanitizeHtml from 'sanitize-html';
-import { ErrorCode } from '@club/shared';
+import { ErrorCode, hasRichTextContent } from '@club/shared';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AuditService, type Tx } from '../common/audit.service.js';
@@ -51,7 +51,7 @@ interface Delegate {
   delete(args: object): Promise<Row>;
 }
 export function cleanHtml(html: string): string {
-  return sanitizeHtml(html, {
+  const cleaned = sanitizeHtml(html, {
     allowedTags: sanitizeHtml.defaults.allowedTags.concat(['img']),
     allowedAttributes: {
       ...sanitizeHtml.defaults.allowedAttributes,
@@ -62,6 +62,19 @@ export function cleanHtml(html: string): string {
     allowProtocolRelative: false,
     transformTags: { a: sanitizeHtml.simpleTransform('a', { rel: 'noopener noreferrer' }) },
   });
+  return hasRichTextContent(cleaned) ? cleaned : '';
+}
+export function htmlImageSources(html: string): string[] {
+  const sources = new Set<string>();
+  sanitizeHtml(html, {
+    allowedTags: ['img'],
+    allowedAttributes: { img: ['src'] },
+    exclusiveFilter: (frame) => {
+      if (frame.tag === 'img' && frame.attribs.src) sources.add(frame.attribs.src);
+      return false;
+    },
+  });
+  return [...sources];
 }
 @Injectable()
 export class ContentService {
@@ -105,7 +118,11 @@ export class ContentService {
   async write(actor: Actor, name: ResourceName, input: Record<string, unknown>, id?: string) {
     const config = this.config(name),
       data = { ...input };
-    if (config.html && typeof data.bodyHtml === 'string') data.bodyHtml = cleanHtml(data.bodyHtml);
+    if (config.html && typeof data.bodyHtml === 'string') {
+      data.bodyHtml = cleanHtml(data.bodyHtml);
+      for (const source of htmlImageSources(data.bodyHtml as string))
+        await this.storage.verifyPublicUrl(source, 'CONTENT');
+    }
     for (const field of config.assetFields ?? [])
       if (typeof data[field] === 'string')
         await this.storage.verifyPublicUrl(

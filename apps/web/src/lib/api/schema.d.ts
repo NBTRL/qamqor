@@ -2055,6 +2055,7 @@ export interface components {
             startsAt: string;
             location: string;
             capacity: number;
+            /** Format: uri */
             registrationUrl?: string | null;
             notes?: string;
             /** Format: uuid */
@@ -2165,6 +2166,7 @@ export interface components {
             fullName: string;
             /** @enum {string} */
             role?: "CANDIDATE" | "VOLUNTEER" | "ADMIN";
+            /** Format: email */
             email?: string | null;
         };
         UserPatchDto: {
@@ -2174,6 +2176,7 @@ export interface components {
             /** @enum {string} */
             role?: "CANDIDATE" | "VOLUNTEER" | "ADMIN";
             isBlocked?: boolean;
+            /** Format: email */
             email?: string | null;
         };
         CuratorResponseDto: {
@@ -2236,6 +2239,7 @@ export interface components {
             privateNotes?: string;
             /** @default 0 */
             beneficiariesCount: number;
+            /** Format: uri */
             coverImageUrl?: string | null;
             /** @default true */
             isActive: boolean;
@@ -2256,6 +2260,7 @@ export interface components {
             privateNotes?: string;
             /** @default 0 */
             beneficiariesCount: number;
+            /** Format: uri */
             coverImageUrl?: string | null;
             /** @default true */
             isActive: boolean;
@@ -2274,6 +2279,7 @@ export interface components {
             privateNotes?: string;
             /** @default 0 */
             beneficiariesCount: number;
+            /** Format: uri */
             coverImageUrl?: string | null;
             /** @default true */
             isActive: boolean;
@@ -2327,6 +2333,7 @@ export interface components {
             startsAt: string;
             location: string;
             capacity: number;
+            /** Format: uri */
             registrationUrl?: string | null;
             notes?: string;
         };
@@ -2335,6 +2342,7 @@ export interface components {
             startsAt?: string;
             location?: string;
             capacity?: number;
+            /** Format: uri */
             registrationUrl?: string | null;
             notes?: string;
         };
@@ -2351,6 +2359,7 @@ export interface components {
             title: string;
             bodyHtml: string;
             excerpt: string;
+            /** Format: uri */
             coverUrl?: string | null;
             /** @enum {string} */
             status?: "DRAFT" | "PUBLISHED" | "ARCHIVED";
@@ -2368,6 +2377,7 @@ export interface components {
             title: string;
             bodyHtml: string;
             excerpt: string;
+            /** Format: uri */
             coverUrl?: string | null;
             /** @enum {string} */
             status?: "DRAFT" | "PUBLISHED" | "ARCHIVED";
@@ -2379,6 +2389,7 @@ export interface components {
             title?: string;
             bodyHtml?: string;
             excerpt?: string;
+            /** Format: uri */
             coverUrl?: string | null;
             /** @enum {string} */
             status?: "DRAFT" | "PUBLISHED" | "ARCHIVED";
@@ -2408,6 +2419,7 @@ export interface components {
             /** Format: uuid */
             albumId: string;
             type: components["schemas"]["MediaType"];
+            /** Format: uri */
             url: string;
             caption?: string;
             isPublic?: boolean;
@@ -2419,6 +2431,7 @@ export interface components {
             slug: string;
             title: string;
             description?: string;
+            /** Format: uri */
             coverUrl?: string | null;
             /** Format: date-time */
             publishedAt?: string | null;
@@ -2430,6 +2443,7 @@ export interface components {
             slug: string;
             title: string;
             description?: string;
+            /** Format: uri */
             coverUrl?: string | null;
             /** Format: date-time */
             publishedAt?: string | null;
@@ -2438,6 +2452,7 @@ export interface components {
             slug?: string;
             title?: string;
             description?: string;
+            /** Format: uri */
             coverUrl?: string | null;
             /** Format: date-time */
             publishedAt?: string | null;
@@ -2446,6 +2461,7 @@ export interface components {
             /** Format: uuid */
             albumId: string;
             type: components["schemas"]["MediaType"];
+            /** Format: uri */
             url: string;
             caption?: string;
             isPublic?: boolean;
@@ -2455,6 +2471,7 @@ export interface components {
             /** Format: uuid */
             albumId?: string;
             type?: components["schemas"]["MediaType"];
+            /** Format: uri */
             url?: string;
             caption?: string;
             isPublic?: boolean;
@@ -2464,6 +2481,7 @@ export interface components {
             slug: string;
             title: string;
             bodyHtml: string;
+            /** Format: uri */
             coverUrl?: string | null;
             /** Format: date-time */
             publishedAt?: string | null;
@@ -2474,6 +2492,7 @@ export interface components {
             slug: string;
             title: string;
             bodyHtml: string;
+            /** Format: uri */
             coverUrl?: string | null;
             /** Format: date-time */
             publishedAt?: string | null;
@@ -2482,6 +2501,7 @@ export interface components {
             slug?: string;
             title?: string;
             bodyHtml?: string;
+            /** Format: uri */
             coverUrl?: string | null;
             /** Format: date-time */
             publishedAt?: string | null;
@@ -2490,6 +2510,7 @@ export interface components {
             slug: string;
             title: string;
             bodyHtml: string;
+            /** Format: uri */
             coverUrl?: string | null;
             isActive?: boolean;
             /** Format: uuid */
@@ -2499,6 +2520,7 @@ export interface components {
             slug: string;
             title: string;
             bodyHtml: string;
+            /** Format: uri */
             coverUrl?: string | null;
             isActive?: boolean;
         };
@@ -2506,13 +2528,16 @@ export interface components {
             slug?: string;
             title?: string;
             bodyHtml?: string;
+            /** Format: uri */
             coverUrl?: string | null;
             isActive?: boolean;
         };
         PartnerResponseDto: {
             slug: string;
             name: string;
+            /** Format: uri */
             logoUrl?: string | null;
+            /** Format: uri */
             websiteUrl?: string | null;
             isActive?: boolean;
             sortOrder?: number;
@@ -2522,7 +2547,9 @@ export interface components {
         PartnerWriteDto: {
             slug: string;
             name: string;
+            /** Format: uri */
             logoUrl?: string | null;
+            /** Format: uri */
             websiteUrl?: string | null;
             isActive?: boolean;
             sortOrder?: number;
@@ -2530,7 +2557,9 @@ export interface components {
         PartialPartnerWriteDto: {
             slug?: string;
             name?: string;
+            /** Format: uri */
             logoUrl?: string | null;
+            /** Format: uri */
             websiteUrl?: string | null;
             isActive?: boolean;
             sortOrder?: number;
@@ -2538,6 +2567,7 @@ export interface components {
         PressResponseDto: {
             title: string;
             outlet: string;
+            /** Format: uri */
             url: string;
             /** Format: date-time */
             publishedAt: string;
@@ -2547,6 +2577,7 @@ export interface components {
         PressWriteDto: {
             title: string;
             outlet: string;
+            /** Format: uri */
             url: string;
             /** Format: date-time */
             publishedAt: string;
@@ -2554,6 +2585,7 @@ export interface components {
         PartialPressWriteDto: {
             title?: string;
             outlet?: string;
+            /** Format: uri */
             url?: string;
             /** Format: date-time */
             publishedAt?: string;
@@ -2561,6 +2593,7 @@ export interface components {
         ClubReportResponseDto: {
             title: string;
             year: number;
+            /** Format: uri */
             fileUrl: string;
             /** Format: date-time */
             publishedAt?: string | null;
@@ -2570,6 +2603,7 @@ export interface components {
         ClubReportWriteDto: {
             title: string;
             year: number;
+            /** Format: uri */
             fileUrl: string;
             /** Format: date-time */
             publishedAt?: string | null;
@@ -2577,6 +2611,7 @@ export interface components {
         PartialClubReportWriteDto: {
             title?: string;
             year?: number;
+            /** Format: uri */
             fileUrl?: string;
             /** Format: date-time */
             publishedAt?: string | null;

@@ -3246,6 +3246,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 100,
               "type": "string"
             }
           },
@@ -3254,6 +3255,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 100,
               "type": "string"
             }
           },
@@ -5658,6 +5660,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 32,
               "type": "string"
             }
           },
@@ -5666,7 +5669,9 @@
             "required": false,
             "in": "query",
             "schema": {
-              "type": "number"
+              "minimum": 1900,
+              "maximum": 2200,
+              "type": "integer"
             }
           }
         ],
@@ -5943,6 +5948,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 32,
               "type": "string"
             }
           },
@@ -5951,7 +5957,9 @@
             "required": false,
             "in": "query",
             "schema": {
-              "type": "number"
+              "minimum": 1900,
+              "maximum": 2200,
+              "type": "integer"
             }
           }
         ],
@@ -6228,6 +6236,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 32,
               "type": "string"
             }
           },
@@ -6236,7 +6245,9 @@
             "required": false,
             "in": "query",
             "schema": {
-              "type": "number"
+              "minimum": 1900,
+              "maximum": 2200,
+              "type": "integer"
             }
           }
         ],
@@ -6513,6 +6524,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 32,
               "type": "string"
             }
           },
@@ -6521,7 +6533,9 @@
             "required": false,
             "in": "query",
             "schema": {
-              "type": "number"
+              "minimum": 1900,
+              "maximum": 2200,
+              "type": "integer"
             }
           }
         ],
@@ -6798,6 +6812,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 32,
               "type": "string"
             }
           },
@@ -6806,7 +6821,9 @@
             "required": false,
             "in": "query",
             "schema": {
-              "type": "number"
+              "minimum": 1900,
+              "maximum": 2200,
+              "type": "integer"
             }
           }
         ],
@@ -7083,6 +7100,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 32,
               "type": "string"
             }
           },
@@ -7091,7 +7109,9 @@
             "required": false,
             "in": "query",
             "schema": {
-              "type": "number"
+              "minimum": 1900,
+              "maximum": 2200,
+              "type": "integer"
             }
           }
         ],
@@ -7368,6 +7388,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 32,
               "type": "string"
             }
           },
@@ -7376,7 +7397,9 @@
             "required": false,
             "in": "query",
             "schema": {
-              "type": "number"
+              "minimum": 1900,
+              "maximum": 2200,
+              "type": "integer"
             }
           }
         ],
@@ -7653,6 +7676,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 32,
               "type": "string"
             }
           },
@@ -7661,7 +7685,9 @@
             "required": false,
             "in": "query",
             "schema": {
-              "type": "number"
+              "minimum": 1900,
+              "maximum": 2200,
+              "type": "integer"
             }
           }
         ],
@@ -7938,6 +7964,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 32,
               "type": "string"
             }
           },
@@ -7946,7 +7973,9 @@
             "required": false,
             "in": "query",
             "schema": {
-              "type": "number"
+              "minimum": 1900,
+              "maximum": 2200,
+              "type": "integer"
             }
           }
         ],
@@ -8223,6 +8252,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 32,
               "type": "string"
             }
           },
@@ -8231,7 +8261,9 @@
             "required": false,
             "in": "query",
             "schema": {
-              "type": "number"
+              "minimum": 1900,
+              "maximum": 2200,
+              "type": "integer"
             }
           }
         ],
@@ -9341,6 +9373,7 @@
             "required": false,
             "in": "query",
             "schema": {
+              "maxLength": 32,
               "type": "string"
             }
           },
@@ -9349,7 +9382,9 @@
             "required": false,
             "in": "query",
             "schema": {
-              "type": "number"
+              "minimum": 1900,
+              "maximum": 2200,
+              "type": "integer"
             }
           }
         ],
@@ -10043,10 +10078,14 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 160
           },
           "slug": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 100,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
           },
           "id": {
             "type": "string",
@@ -10363,7 +10402,8 @@
         "type": "object",
         "properties": {
           "comment": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 1000
           }
         }
       },
@@ -10405,10 +10445,13 @@
             "format": "uuid"
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
           },
           "description": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 20000
           },
           "startsAt": {
             "type": "string",
@@ -10419,10 +10462,12 @@
             "format": "date-time"
           },
           "meetingPoint": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 500
           },
           "capacity": {
-            "type": "number",
+            "type": "integer",
             "minimum": 1,
             "maximum": 1000
           }
@@ -10445,10 +10490,13 @@
             "format": "uuid"
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
           },
           "description": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 20000
           },
           "startsAt": {
             "type": "string",
@@ -10459,10 +10507,12 @@
             "format": "date-time"
           },
           "meetingPoint": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 500
           },
           "capacity": {
-            "type": "number",
+            "type": "integer",
             "minimum": 1,
             "maximum": 1000
           }
@@ -10476,10 +10526,13 @@
             "format": "uuid"
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
           },
           "description": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 20000
           },
           "startsAt": {
             "type": "string",
@@ -10490,10 +10543,12 @@
             "format": "date-time"
           },
           "meetingPoint": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 500
           },
           "capacity": {
-            "type": "number",
+            "type": "integer",
             "minimum": 1,
             "maximum": 1000
           },
@@ -10521,7 +10576,9 @@
             ]
           },
           "cancelReason": {
-            "type": "string"
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 2000
           }
         },
         "required": [
@@ -10612,12 +10669,17 @@
         "type": "object",
         "properties": {
           "text": {
-            "type": "string"
+            "type": "string",
+            "minLength": 20,
+            "maxLength": 30000
           },
           "hoursSpent": {
-            "type": "number"
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000
           },
           "photos": {
+            "maxItems": 30,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/PhotoReferenceDto"
@@ -10637,10 +10699,13 @@
             "format": "uuid"
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
           },
           "description": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 2000
           },
           "isActive": {
             "type": "boolean",
@@ -10656,6 +10721,7 @@
         "type": "object",
         "properties": {
           "items": {
+            "maxItems": 100,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/NeedWriteDto"
@@ -11004,7 +11070,9 @@
           },
           "registrationUrl": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 2000,
+            "format": "uri"
           },
           "notes": {
             "type": "string",
@@ -11139,6 +11207,7 @@
         "type": "object",
         "properties": {
           "items": {
+            "maxItems": 16,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/SettingDto"
@@ -11390,10 +11459,13 @@
         "type": "object",
         "properties": {
           "telegramId": {
-            "type": "string"
+            "type": "string",
+            "pattern": "^[1-9]\\d{0,18}$"
           },
           "fullName": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 160
           },
           "role": {
             "type": "string",
@@ -11405,7 +11477,9 @@
           },
           "email": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 254,
+            "format": "email"
           }
         },
         "required": [
@@ -11417,15 +11491,19 @@
         "type": "object",
         "properties": {
           "fullName": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 160
           },
           "nickname": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 100
           },
           "city": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 160
           },
           "role": {
             "type": "string",
@@ -11440,7 +11518,9 @@
           },
           "email": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 254,
+            "format": "email"
           }
         }
       },
@@ -11561,7 +11641,8 @@
             ]
           },
           "comment": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 5000
           }
         },
         "required": [
@@ -11572,10 +11653,14 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 160
           },
           "slug": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 100,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
           }
         },
         "required": [
@@ -11587,10 +11672,14 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 160
           },
           "slug": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 100,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
           }
         }
       },
@@ -11598,10 +11687,14 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
           },
           "slug": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 150,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
           },
           "type": {
             "type": "string",
@@ -11617,29 +11710,39 @@
             "format": "uuid"
           },
           "city": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
           },
           "district": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 200
           },
           "address": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 500
           },
           "description": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 20000
           },
           "privateNotes": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 20000
           },
           "beneficiariesCount": {
-            "type": "number",
-            "default": 0
+            "type": "integer",
+            "default": 0,
+            "minimum": 0,
+            "maximum": 1000000
           },
           "coverImageUrl": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 2000,
+            "format": "uri"
           },
           "isActive": {
             "type": "boolean",
@@ -11664,10 +11767,14 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
           },
           "slug": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 150,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
           },
           "type": {
             "type": "string",
@@ -11683,29 +11790,39 @@
             "format": "uuid"
           },
           "city": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
           },
           "district": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 200
           },
           "address": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 500
           },
           "description": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 20000
           },
           "privateNotes": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 20000
           },
           "beneficiariesCount": {
-            "type": "number",
-            "default": 0
+            "type": "integer",
+            "default": 0,
+            "minimum": 0,
+            "maximum": 1000000
           },
           "coverImageUrl": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 2000,
+            "format": "uri"
           },
           "isActive": {
             "type": "boolean",
@@ -11725,10 +11842,14 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
           },
           "slug": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 150,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
           },
           "type": {
             "type": "string",
@@ -11744,29 +11865,39 @@
             "format": "uuid"
           },
           "city": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
           },
           "district": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 200
           },
           "address": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 500
           },
           "description": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 20000
           },
           "privateNotes": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 20000
           },
           "beneficiariesCount": {
-            "type": "number",
-            "default": 0
+            "type": "integer",
+            "default": 0,
+            "minimum": 0,
+            "maximum": 1000000
           },
           "coverImageUrl": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 2000,
+            "format": "uri"
           },
           "isActive": {
             "type": "boolean",
@@ -11945,7 +12076,9 @@
           },
           "registrationUrl": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 2000,
+            "format": "uri"
           },
           "notes": {
             "type": "string",
@@ -11977,7 +12110,9 @@
           },
           "registrationUrl": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 2000,
+            "format": "uri"
           },
           "notes": {
             "type": "string",
@@ -12016,20 +12151,28 @@
         "type": "object",
         "properties": {
           "slug": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 150,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
           },
           "bodyHtml": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 100000
           },
           "excerpt": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 1000
           },
           "coverUrl": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 2000,
+            "format": "uri"
           },
           "status": {
             "type": "string",
@@ -12071,20 +12214,28 @@
         "type": "object",
         "properties": {
           "slug": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 150,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
           },
           "bodyHtml": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 100000
           },
           "excerpt": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 1000
           },
           "coverUrl": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 2000,
+            "format": "uri"
           },
           "status": {
             "type": "string",
@@ -12111,20 +12262,28 @@
         "type": "object",
         "properties": {
           "slug": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 150,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
           },
           "bodyHtml": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 100000
           },
           "excerpt": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 1000
           },
           "coverUrl": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 2000,
+            "format": "uri"
           },
           "status": {
             "type": "string",
@@ -12145,13 +12304,18 @@
         "type": "object",
         "properties": {
           "slug": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 150,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
           },
           "bodyHtml": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 100000
           },
           "id": {
             "type": "string",
@@ -12169,13 +12333,18 @@
         "type": "object",
         "properties": {
           "slug": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 150,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
           },
           "bodyHtml": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 100000
           }
         },
         "required": [
@@ -12188,13 +12357,18 @@
         "type": "object",
         "properties": {
           "slug": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 150,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
           },
           "bodyHtml": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 100000
           }
         }
       },
@@ -12220,16 +12394,21 @@
             ]
           },
           "url": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 2000,
+            "format": "uri"
           },
           "caption": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 1000
           },
           "isPublic": {
             "type": "boolean"
           },
           "sortOrder": {
-            "type": "number"
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000
           },
           "id": {
             "type": "string",
@@ -12247,17 +12426,24 @@
         "type": "object",
         "properties": {
           "slug": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 150,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
           },
           "description": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 10000
           },
           "coverUrl": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 2000,
+            "format": "uri"
           },
           "publishedAt": {
             "type": "string",
@@ -12285,17 +12471,24 @@
         "type": "object",
         "properties": {
           "slug": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 150,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
           },
           "description": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 10000
           },
           "coverUrl": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 2000,
+            "format": "uri"
           },
           "publishedAt": {
             "type": "string",
@@ -12312,17 +12505,24 @@
         "type": "object",
         "properties": {
           "slug": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 150,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
           },
           "description": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 10000
           },
           "coverUrl": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 2000,
+            "format": "uri"
           },
           "publishedAt": {
             "type": "string",
@@ -12346,16 +12546,21 @@
             ]
           },
           "url": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 2000,
+            "format": "uri"
           },
           "caption": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 1000
           },
           "isPublic": {
             "type": "boolean"
           },
           "sortOrder": {
-            "type": "number"
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000
           }
         },
         "required": [
@@ -12379,16 +12584,21 @@
             ]
           },
           "url": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 2000,
+            "format": "uri"
           },
           "caption": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 1000
           },
           "isPublic": {
             "type": "boolean"
           },
           "sortOrder": {
-            "type": "number"
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000
           }
         }
       },
@@ -12396,17 +12606,24 @@
         "type": "object",
         "properties": {
           "slug": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 150,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
           },
           "bodyHtml": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 100000
           },
           "coverUrl": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 2000,
+            "format": "uri"
           },
           "publishedAt": {
             "type": "string",
@@ -12429,17 +12646,24 @@
         "type": "object",
         "properties": {
           "slug": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 150,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
           },
           "bodyHtml": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 100000
           },
           "coverUrl": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 2000,
+            "format": "uri"
           },
           "publishedAt": {
             "type": "string",
@@ -12457,17 +12681,24 @@
         "type": "object",
         "properties": {
           "slug": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 150,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
           },
           "bodyHtml": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 100000
           },
           "coverUrl": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 2000,
+            "format": "uri"
           },
           "publishedAt": {
             "type": "string",
@@ -12480,17 +12711,24 @@
         "type": "object",
         "properties": {
           "slug": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 150,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
           },
           "bodyHtml": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 100000
           },
           "coverUrl": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 2000,
+            "format": "uri"
           },
           "isActive": {
             "type": "boolean"
@@ -12511,17 +12749,24 @@
         "type": "object",
         "properties": {
           "slug": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 150,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
           },
           "bodyHtml": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 100000
           },
           "coverUrl": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 2000,
+            "format": "uri"
           },
           "isActive": {
             "type": "boolean"
@@ -12537,17 +12782,24 @@
         "type": "object",
         "properties": {
           "slug": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 150,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
           },
           "bodyHtml": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 100000
           },
           "coverUrl": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 2000,
+            "format": "uri"
           },
           "isActive": {
             "type": "boolean"
@@ -12558,24 +12810,34 @@
         "type": "object",
         "properties": {
           "slug": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 150,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
           },
           "name": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
           },
           "logoUrl": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 2000,
+            "format": "uri"
           },
           "websiteUrl": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 2000,
+            "format": "uri"
           },
           "isActive": {
             "type": "boolean"
           },
           "sortOrder": {
-            "type": "number"
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000
           },
           "id": {
             "type": "string",
@@ -12592,24 +12854,34 @@
         "type": "object",
         "properties": {
           "slug": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 150,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
           },
           "name": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
           },
           "logoUrl": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 2000,
+            "format": "uri"
           },
           "websiteUrl": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 2000,
+            "format": "uri"
           },
           "isActive": {
             "type": "boolean"
           },
           "sortOrder": {
-            "type": "number"
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000
           }
         },
         "required": [
@@ -12621,24 +12893,34 @@
         "type": "object",
         "properties": {
           "slug": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 150,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
           },
           "name": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
           },
           "logoUrl": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 2000,
+            "format": "uri"
           },
           "websiteUrl": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 2000,
+            "format": "uri"
           },
           "isActive": {
             "type": "boolean"
           },
           "sortOrder": {
-            "type": "number"
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000
           }
         }
       },
@@ -12646,13 +12928,19 @@
         "type": "object",
         "properties": {
           "title": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
           },
           "outlet": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
           },
           "url": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 2000,
+            "format": "uri"
           },
           "publishedAt": {
             "type": "string",
@@ -12675,13 +12963,19 @@
         "type": "object",
         "properties": {
           "title": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
           },
           "outlet": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
           },
           "url": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 2000,
+            "format": "uri"
           },
           "publishedAt": {
             "type": "string",
@@ -12699,13 +12993,19 @@
         "type": "object",
         "properties": {
           "title": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
           },
           "outlet": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
           },
           "url": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 2000,
+            "format": "uri"
           },
           "publishedAt": {
             "type": "string",
@@ -12717,13 +13017,19 @@
         "type": "object",
         "properties": {
           "title": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
           },
           "year": {
-            "type": "number"
+            "type": "integer",
+            "minimum": 1900,
+            "maximum": 2200
           },
           "fileUrl": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 2000,
+            "format": "uri"
           },
           "publishedAt": {
             "type": "string",
@@ -12746,13 +13052,19 @@
         "type": "object",
         "properties": {
           "title": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
           },
           "year": {
-            "type": "number"
+            "type": "integer",
+            "minimum": 1900,
+            "maximum": 2200
           },
           "fileUrl": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 2000,
+            "format": "uri"
           },
           "publishedAt": {
             "type": "string",
@@ -12770,13 +13082,19 @@
         "type": "object",
         "properties": {
           "title": {
-            "type": "string"
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 200
           },
           "year": {
-            "type": "number"
+            "type": "integer",
+            "minimum": 1900,
+            "maximum": 2200
           },
           "fileUrl": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 2000,
+            "format": "uri"
           },
           "publishedAt": {
             "type": "string",
@@ -12790,19 +13108,23 @@
         "properties": {
           "amount": {
             "type": "string",
-            "example": "1500.00"
+            "example": "1500.00",
+            "maxLength": 15
           },
           "currency": {
             "type": "string",
-            "default": "RUB"
+            "default": "RUB",
+            "pattern": "^[A-Z]{3}$"
           },
           "donorName": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 200
           },
           "note": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 5000
           },
           "receivedAt": {
             "type": "string",
@@ -12829,19 +13151,23 @@
         "properties": {
           "amount": {
             "type": "string",
-            "example": "1500.00"
+            "example": "1500.00",
+            "maxLength": 15
           },
           "currency": {
             "type": "string",
-            "default": "RUB"
+            "default": "RUB",
+            "pattern": "^[A-Z]{3}$"
           },
           "donorName": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 200
           },
           "note": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 5000
           },
           "receivedAt": {
             "type": "string",
@@ -12858,19 +13184,23 @@
         "properties": {
           "amount": {
             "type": "string",
-            "example": "1500.00"
+            "example": "1500.00",
+            "maxLength": 15
           },
           "currency": {
             "type": "string",
-            "default": "RUB"
+            "default": "RUB",
+            "pattern": "^[A-Z]{3}$"
           },
           "donorName": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 200
           },
           "note": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 5000
           },
           "receivedAt": {
             "type": "string",
@@ -12992,7 +13322,8 @@
           },
           "adminNote": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 10000
           },
           "id": {
             "type": "string",
@@ -13033,7 +13364,8 @@
           },
           "adminNote": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "maxLength": 10000
           }
         }
       },
@@ -13088,9 +13420,11 @@
             ]
           },
           "value": {
-            "type": "number",
+            "type": "integer",
             "nullable": true,
-            "description": "null возвращает счетчик к расчету из БД."
+            "description": "null возвращает счетчик к расчету из БД.",
+            "minimum": 0,
+            "maximum": 2147483647
           }
         },
         "required": [
@@ -13102,6 +13436,7 @@
         "type": "object",
         "properties": {
           "items": {
+            "maxItems": 7,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/StatOverrideDto"

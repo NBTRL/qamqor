@@ -23,7 +23,8 @@ createServer(async (req, res) => {
         id: '11111111-1111-4111-8111-111111111111',
         slug,
         title: 'CMS page',
-        bodyHtml: `<p>Содержимое CMS для ${slug}</p>`,
+        bodyHtml:
+          mode === 'empty' ? '<p><br>&nbsp; &#160;</p>' : `<p>Содержимое CMS для ${slug}</p>`,
       };
   }
   res.writeHead(status, { 'Content-Type': 'application/json' });

@@ -1,4 +1,4 @@
-import { DISPLAY_TIME_ZONE } from '@club/shared';
+import { dateTimeSchema, DISPLAY_TIME_ZONE } from '@club/shared';
 export const date = (value?: string | null, time = true) =>
   value
     ? new Intl.DateTimeFormat('ru-RU', {
@@ -9,7 +9,10 @@ export const date = (value?: string | null, time = true) =>
         ...(time ? { hour: '2-digit', minute: '2-digit' } : {}),
       }).format(new Date(value))
     : '—';
-export const localDateTime = (value: string) => new Date(`${value}:00+03:00`).toISOString();
+export const localDateTime = (value: string) => {
+  const iso = `${value}:00+03:00`;
+  return dateTimeSchema.safeParse(iso).success ? new Date(iso).toISOString() : value;
+};
 export const inputDateTime = (value: string) =>
   new Intl.DateTimeFormat('sv-SE', {
     timeZone: DISPLAY_TIME_ZONE,
