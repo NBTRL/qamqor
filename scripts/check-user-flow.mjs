@@ -249,10 +249,117 @@ try {
   await admin.getByRole('searchbox', { name: 'Поиск' }).fill('Браузерный участник');
   await admin.getByRole('button', { name: 'Найти', exact: true }).click();
   await expect(admin.getByRole('table')).toContainText('Браузерный участник');
+
+  // Exercise the real admin form, HTTP DTOs, atomic outbox and participant UI.
+  const adminUser = await prisma.user.findUniqueOrThrow({ where: { telegramId: BigInt(adminId) } });
+  const futureYear = new Date().getUTCFullYear() + 1;
+  const movedStart = `${futureYear}-01-15T10:00:00.000Z`;
+  const movedEnd = `${futureYear}-01-15T11:00:00.000Z`;
+  const nextDay = `${futureYear}-01-16T10:00:00.000Z`;
+  const originalStart = new Date(Date.now() + 7 * 86400_000);
+  const movedEvent = await prisma.event.create({
+    data: {
+      type: 'SEMINAR',
+      title: 'Браузерный перенос мероприятия',
+      description: '',
+      startsAt: originalStart,
+      endsAt: new Date(originalStart.getTime() + 3600_000),
+      location: 'Браузерное старое место',
+      createdById: adminUser.id,
+      capacity: 5,
+    },
+  });
+  const movedDay = await prisma.openDaySession.create({
+    data: { startsAt: originalStart, location: 'Браузерный ДОД для переноса', capacity: 5 },
+  });
+  await prisma.eventRegistration.create({
+    data: { eventId: movedEvent.id, userId: candidate.id, status: 'CONFIRMED' },
+  });
+  await prisma.openDayRegistration.create({
+    data: { sessionId: movedDay.id, userId: candidate.id },
+  });
+
+  async function editSchedule(resource, search, id, changes) {
+    await admin.goto(`${base}/admin/${resource}`);
+    await admin.getByRole('searchbox', { name: 'Поиск' }).fill(search);
+    await admin.getByRole('button', { name: 'Найти', exact: true }).click();
+    await admin
+      .getByRole('row')
+      .filter({ hasText: search })
+      .getByRole('button', { name: 'Редактировать', exact: true })
+      .click();
+    const dialog = admin.getByRole('dialog');
+    for (const [label, value] of Object.entries(changes))
+      await dialog.getByLabel(label, { exact: true }).fill(value);
+    const saved = admin.waitForResponse(
+      (r) =>
+        r.url().endsWith(`/api/v1/admin/${resource}/${id}`) && r.request().method() === 'PATCH',
+    );
+    await dialog.getByRole('button', { name: 'Сохранить', exact: true }).click();
+    assert.equal((await saved).status(), 200);
+    await expect(dialog).not.toBeVisible();
+  }
+  await editSchedule('events', movedEvent.title, movedEvent.id, {
+    'Начало (МСК)': `${futureYear}-01-15T13:00`,
+    'Окончание (МСК)': `${futureYear}-01-15T14:00`,
+    Место: 'Браузерное новое место',
+  });
+  // Saving the same form again must not create a second reschedule notice.
+  await editSchedule('events', movedEvent.title, movedEvent.id, {});
+  await editSchedule('open-days', movedDay.location, movedDay.id, {
+    'Начало (МСК)': `${futureYear}-01-16T13:00`,
+    Место: 'Браузерный новый ДОД',
+  });
+  const persistedEvent = await prisma.event.findUniqueOrThrow({ where: { id: movedEvent.id } });
+  assert.equal(persistedEvent.startsAt.toISOString(), movedStart);
+  assert.equal(persistedEvent.endsAt.toISOString(), movedEnd);
+  assert.equal(persistedEvent.location, 'Браузерное новое место');
+  assert.equal(
+    (
+      await prisma.openDaySession.findUniqueOrThrow({ where: { id: movedDay.id } })
+    ).startsAt.toISOString(),
+    nextDay,
+  );
+  const changes = await prisma.notification.findMany({
+    where: {
+      userId: candidate.id,
+      channel: 'IN_APP',
+      type: { in: ['EventRescheduled', 'OpenDayRescheduled'] },
+    },
+  });
+  assert.equal(changes.length, 2);
+  assert.equal(changes.find((n) => n.type === 'EventRescheduled').payload.startsAt, movedStart);
+  assert.equal(
+    changes.find((n) => n.type === 'OpenDayRescheduled').payload.location,
+    'Браузерный новый ДОД',
+  );
+
+  await browser.close();
+  browser = undefined;
+  const participant = await openBrowser();
+  await participant.goto(`${base}/login?next=/cabinet/notifications`);
+  await login(participant, candidateId);
+  await expect(participant).toHaveURL(`${base}/cabinet/notifications`);
+  const eventNotice = participant
+    .getByRole('row')
+    .filter({ hasText: 'Место: Браузерное новое место' });
+  await expect(eventNotice).toContainText('Начало: 15.01.' + futureYear + ', 13:00 (Москва)');
+  await expect(eventNotice).toContainText('Окончание: 15.01.' + futureYear + ', 14:00 (Москва)');
+  await expect(eventNotice.getByRole('link', { name: 'Подробнее' })).toHaveAttribute(
+    'href',
+    `/events/${movedEvent.id}`,
+  );
+  const dayNotice = participant.getByRole('row').filter({ hasText: 'Место: Браузерный новый ДОД' });
+  await expect(dayNotice).toContainText('Начало: 16.01.' + futureYear + ', 13:00 (Москва)');
+  await expect(dayNotice.getByRole('link', { name: 'Подробнее' })).toHaveAttribute(
+    'href',
+    '/cabinet/registrations',
+  );
+  assert.ok(await participant.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   assert.deepEqual(externalRequests, []);
   assert.deepEqual(errors, []);
   console.log(
-    'PASS real browser/API/database: onboarding return, registration, persisted cancellation, candidate/admin guards, admin email challenge, mobile hydration',
+    'PASS real browser/API/database: onboarding return, registration, persisted cancellation, candidate/admin guards, admin email challenge, reschedule notifications, mobile hydration',
   );
 } finally {
   await browser?.close();

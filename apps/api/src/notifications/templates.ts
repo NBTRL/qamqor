@@ -8,15 +8,20 @@ export function notificationMessage(
 ): { subject: string; text: string } {
   const data = payload && typeof payload === 'object' && !Array.isArray(payload) ? payload : {};
   const title = typeof data.title === 'string' ? data.title : 'Событие Клуба';
-  const startsAt = typeof data.startsAt === 'string' ? new Date(data.startsAt) : null;
-  const date =
-    startsAt && !Number.isNaN(startsAt.getTime())
+  const formatDate = (value: Prisma.JsonValue | undefined) => {
+    const parsed = typeof value === 'string' ? new Date(value) : null;
+    return parsed && !Number.isNaN(parsed.getTime())
       ? new Intl.DateTimeFormat('ru-RU', {
           timeZone: DISPLAY_TIME_ZONE,
           dateStyle: 'long',
           timeStyle: 'short',
-        }).format(startsAt)
+        }).format(parsed)
       : '';
+  };
+  const date = formatDate(data.startsAt);
+  const end = formatDate(data.endsAt);
+  const location =
+    typeof data.location === 'string' && data.location ? `\nМесто: ${data.location}` : '';
   const subjects: Record<NotificationType, string> = {
     ApplicationStatusChanged: 'Изменился статус вашей заявки',
     RegistrationConfirmed: 'Запись на поездку подтверждена',
@@ -33,12 +38,14 @@ export function notificationMessage(
     OpenDayReminder: 'Напоминание о Дне открытых дверей',
     EventRegistered: 'Вы записаны на мероприятие',
     EventCancelled: 'Запись на мероприятие отменена',
+    EventRescheduled: 'Изменились время или место мероприятия',
     OpenDayRegistered: 'Вы записаны на День открытых дверей',
+    OpenDayRescheduled: 'Изменились время или место Дня открытых дверей',
   };
   const link =
     type === 'ApplicationStatusChanged'
       ? '/cabinet/application'
-      : type === 'OpenDayRegistered' || type === 'OpenDayReminder'
+      : type === 'OpenDayRegistered' || type === 'OpenDayReminder' || type === 'OpenDayRescheduled'
         ? '/cabinet/registrations'
         : typeof data.tripId === 'string'
           ? `/trips/${data.tripId}`
@@ -48,6 +55,6 @@ export function notificationMessage(
   const status = typeof data.statusLabel === 'string' ? `\nНовый статус: ${data.statusLabel}.` : '';
   return {
     subject: subjects[type],
-    text: `Клуб волонтеров\n\n${subjects[type]}.\n${title}${date ? `\n${date} (Москва)` : ''}${status}\n\nПодробнее: ${webUrl}${link}`,
+    text: `Клуб волонтеров\n\n${subjects[type]}.\n${title}${date ? `\n${date} (Москва)` : ''}${end ? `\nОкончание: ${end} (Москва)` : ''}${location}${status}\n\nПодробнее: ${webUrl}${link}`,
   };
 }
