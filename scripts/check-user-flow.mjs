@@ -334,6 +334,87 @@ try {
     'Браузерный новый ДОД',
   );
 
+  const captionAlbum = await prisma.mediaAlbum.create({
+    data: { slug: 'browser-caption-clearing', title: 'Браузерные подписи' },
+  });
+  for (const [index, type] of ['PHOTO', 'VIDEO'].entries()) {
+    const oldCaption = `Браузерная подпись ${type}`;
+    const media = await prisma.mediaItem.create({
+      data: {
+        id: `00000000-0000-4000-8000-00000000c60${index + 1}`,
+        albumId: captionAlbum.id,
+        type,
+        caption: oldCaption,
+        url: type === 'PHOTO' ? 'https://example.test/photo.png' : 'https://example.test/video.mp4',
+      },
+    });
+    await admin.goto(`${base}/admin/media-items`);
+    await admin.getByRole('searchbox', { name: 'Поиск' }).fill(oldCaption);
+    await admin.getByRole('button', { name: 'Найти', exact: true }).click();
+    await admin
+      .getByRole('row')
+      .filter({ hasText: oldCaption })
+      .getByRole('button', { name: 'Редактировать', exact: true })
+      .click();
+    let editor = admin.getByRole('dialog');
+    await editor.getByLabel('Подпись', { exact: true }).fill('');
+    const saved = admin.waitForResponse(
+      (r) =>
+        new URL(r.url()).pathname === `/api/v1/admin/media-items/${media.id}` &&
+        r.request().method() === 'PATCH',
+    );
+    await editor.getByRole('button', { name: 'Сохранить', exact: true }).click();
+    const response = await saved;
+    assert.equal(response.status(), 200);
+    assert.equal(response.request().postDataJSON().caption, '');
+    assert.equal((await response.json()).caption, '');
+    await expect(editor).not.toBeVisible();
+    assert.equal(
+      (await prisma.mediaItem.findUniqueOrThrow({ where: { id: media.id } })).caption,
+      '',
+    );
+
+    // A new document fetch and a new editor must read the persisted empty caption.
+    const refreshed = admin
+      .waitForRequest((request) => {
+        const url = new URL(request.url());
+        return (
+          url.pathname === '/api/v1/admin/media-items' &&
+          !url.searchParams.get('search') &&
+          request.method() === 'GET'
+        );
+      })
+      .then(async (request) => {
+        const response = await request.response();
+        assert.equal(response?.status(), 200);
+        return response.json();
+      });
+    await admin.goto(`${base}/admin/media-items`);
+    const rows = (await refreshed).items;
+    const position = rows.findIndex((row) => row.id === media.id);
+    assert.ok(position >= 0, 'Caption fixture is missing from the reloaded list');
+    await admin
+      .getByRole('table')
+      .getByRole('row')
+      .nth(position + 1)
+      .getByRole('button', { name: 'Редактировать', exact: true })
+      .click();
+    editor = admin.getByRole('dialog');
+    await expect(editor.getByLabel('Подпись', { exact: true })).toHaveValue('');
+    const resaved = admin.waitForResponse(
+      (r) =>
+        new URL(r.url()).pathname === `/api/v1/admin/media-items/${media.id}` &&
+        r.request().method() === 'PATCH',
+    );
+    await editor.getByRole('button', { name: 'Сохранить', exact: true }).click();
+    assert.equal((await resaved).status(), 200);
+    await expect(editor).not.toBeVisible();
+    assert.equal(
+      (await prisma.mediaItem.findUniqueOrThrow({ where: { id: media.id } })).caption,
+      '',
+    );
+  }
+
   await browser.close();
   browser = undefined;
   const participant = await openBrowser();
@@ -359,7 +440,7 @@ try {
   assert.deepEqual(externalRequests, []);
   assert.deepEqual(errors, []);
   console.log(
-    'PASS real browser/API/database: onboarding return, registration, persisted cancellation, candidate/admin guards, admin email challenge, reschedule notifications, mobile hydration',
+    'PASS real browser/API/database: onboarding return, registration, persisted cancellation, candidate/admin guards, admin email challenge, reschedule notifications, media caption clearing, mobile hydration',
   );
 } finally {
   await browser?.close();

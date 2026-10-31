@@ -861,6 +861,64 @@ describe('Повторный аудит контракта и пограничн
 });
 
 describe('Контент, статистика и инфраструктура', () => {
+  it.each(['PHOTO', 'VIDEO'] as const)(
+    'persists an empty %s caption while omission preserves it and null is rejected',
+    async (type) => {
+      const admin = await administrator();
+      const authorized = (method: 'get' | 'post' | 'patch', path: string) =>
+        req(method, path).set('Authorization', `Bearer ${admin.access}`);
+      const album = await prisma.mediaAlbum.create({
+        data: {
+          title: 'Подписи',
+          slug: `captions-${++sequence}`,
+          publishedAt: new Date(Date.now() - 1000),
+        },
+      });
+      const created = await authorized('post', '/admin/media-items').send({
+        albumId: album.id,
+        type,
+        url: type === 'PHOTO' ? 'https://example.test/photo.png' : 'https://example.test/video.mp4',
+        caption: 'Прежняя подпись',
+        isPublic: true,
+        sortOrder: 0,
+      });
+      expect(created.status).toBe(201);
+      const path = `/admin/media-items/${created.body.id}`;
+      const omitted = await authorized('patch', path).send({ sortOrder: 1 });
+      expect(omitted.status).toBe(200);
+      expect(omitted.body.caption).toBe('Прежняя подпись');
+      const cleared = await authorized('patch', path).send({ caption: '' });
+      expect(cleared.status).toBe(200);
+      expect(cleared.body.caption).toBe('');
+      expect(
+        (await prisma.mediaItem.findUniqueOrThrow({ where: { id: created.body.id } })).caption,
+      ).toBe('');
+      const reloaded = await authorized('get', path);
+      expect(reloaded.status).toBe(200);
+      expect(reloaded.body).toMatchObject({
+        caption: '',
+        albumId: album.id,
+        type,
+        isPublic: true,
+        sortOrder: 1,
+      });
+      const published = await req('get', `/albums/${album.slug}`);
+      expect(published.status).toBe(200);
+      expect(
+        published.body.items.find((item: { id: string }) => item.id === created.body.id).caption,
+      ).toBe('');
+      for (const caption of [null, 'x'.repeat(1001)]) {
+        const invalid = await authorized('patch', path).send({ caption });
+        expect(invalid.status).toBe(400);
+        expect(invalid.body.code).toBe('VALIDATION_ERROR');
+      }
+      expect((await authorized('get', path)).body.caption).toBe('');
+      const restored = await authorized('patch', path).send({ caption: 'Новая подпись' });
+      expect(restored.status).toBe(200);
+      expect(restored.body.caption).toBe('Новая подпись');
+    },
+  );
+
   it('доставляет DB-outbox через настоящий BullMQ worker в SMTP', async () => {
     const user = await prisma.user.create({
       data: {

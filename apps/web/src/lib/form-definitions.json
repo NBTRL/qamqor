@@ -103,7 +103,11 @@
         "format": "uri",
         "description": "Ссылка на фото или видео выбранного типа. Управляемые изображения недопустимы для VIDEO. При смене типа нужна новая ссылка."
       },
-      "caption": { "type": "string", "maxLength": 1000 },
+      "caption": {
+        "type": "string",
+        "maxLength": 1000,
+        "description": "Пустая строка удаляет подпись. В PATCH отсутствие поля сохраняет текущую подпись."
+      },
       "isPublic": { "type": "boolean" },
       "sortOrder": { "type": "integer", "minimum": 0, "maximum": 100000 }
     },

@@ -132,7 +132,11 @@ export class MediaItemWriteDto {
   @MaxLength(2000)
   @IsUrl({ require_tld: false, protocols: ['http', 'https'], require_protocol: true })
   url!: string;
-  @ApiPropertyOptional({ maxLength: 1000 })
+  @ApiPropertyOptional({
+    maxLength: 1000,
+    description:
+      'Пустая строка удаляет подпись. В PATCH отсутствие поля сохраняет текущую подпись.',
+  })
   @ValidateIf((_object, value) => value !== undefined)
   @IsString()
   @MaxLength(1000)

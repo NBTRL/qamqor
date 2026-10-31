@@ -12447,7 +12447,8 @@
           },
           "caption": {
             "type": "string",
-            "maxLength": 1000
+            "maxLength": 1000,
+            "description": "Пустая строка удаляет подпись. В PATCH отсутствие поля сохраняет текущую подпись."
           },
           "isPublic": {
             "type": "boolean"
@@ -12600,7 +12601,8 @@
           },
           "caption": {
             "type": "string",
-            "maxLength": 1000
+            "maxLength": 1000,
+            "description": "Пустая строка удаляет подпись. В PATCH отсутствие поля сохраняет текущую подпись."
           },
           "isPublic": {
             "type": "boolean"
@@ -12639,7 +12641,8 @@
           },
           "caption": {
             "type": "string",
-            "maxLength": 1000
+            "maxLength": 1000,
+            "description": "Пустая строка удаляет подпись. В PATCH отсутствие поля сохраняет текущую подпись."
           },
           "isPublic": {
             "type": "boolean"
