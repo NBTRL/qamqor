@@ -41,7 +41,7 @@ describe('Правила поездок и кандидатов', () => {
       ErrorCode.TRIP_NOT_OPEN,
     );
   });
-  it('отклоняет повторную запись и выбирает PENDING/WAITLIST по подтвержденным местам', () => {
+  it('отклоняет повторную запись и выбирает PENDING/WAITLIST по распределенным местам', () => {
     expect(code(() => assertTripRegistration('VOLUNTEER', 'OPEN', future, true))).toBe(
       ErrorCode.TRIP_ALREADY_REGISTERED,
     );

@@ -1,12 +1,13 @@
 import { getEnvironment } from '../config/environment.js';
 import { lockFileReferences, retainFileReferences } from '../storage/file-references.js';
 import { Injectable, Logger } from '@nestjs/common';
-import { promoteTripWaitlist } from './trip-waitlist.js';
+import { occupiedTripPlaces, promoteTripWaitlist } from './trip-waitlist.js';
 import { ErrorCode, RegistrationStatus, TripStatus, type NotificationType } from '@club/shared';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AuditService, type Tx } from '../common/audit.service.js';
 import { lockActiveUser } from '../common/active-user.js';
+import { retryTransaction } from '../common/transaction-retry.js';
 import { ApiException } from '../common/api-exception.js';
 import { hasPrivateAccess, type Actor } from '../common/http.js';
 import { pageArgs, pageResult, type PageQueryDto } from '../common/query.dto.js';
@@ -163,191 +164,212 @@ export class TripsService {
       .catch(() => this.logger.warn('TRIP_SCHEDULE_RECONCILE_REQUIRED'));
   }
   async update(actor: Actor, id: string, dto: TripPatchDto) {
-    await this.prisma.$transaction(async (tx) => {
-      await lockActiveUser(tx, actor.id);
-      const trip = await this.lock(tx, id);
-      await assertCurator(tx, actor, trip.placeId);
-      if (dto.placeId && dto.placeId !== trip.placeId)
-        throw new ApiException(ErrorCode.FORBIDDEN_PLACE);
-      const startsAt = dto.startsAt ? new Date(dto.startsAt) : trip.startsAt,
-        endsAt = dto.endsAt ? new Date(dto.endsAt) : trip.endsAt;
-      assertDates(startsAt, endsAt);
-      if (
-        (dto.startsAt || dto.endsAt || dto.capacity !== undefined) &&
-        !['DRAFT', 'OPEN', 'CLOSED'].includes(trip.status)
-      )
-        throw new ApiException(ErrorCode.INVALID_TRANSITION);
-      if (
-        dto.capacity !== undefined &&
-        dto.capacity <
-          (await tx.tripRegistration.count({ where: { tripId: id, status: 'CONFIRMED' } }))
-      )
-        throw new ApiException(ErrorCode.TRIP_FULL);
-      await tx.trip.update({ where: { id }, data: { ...dto, startsAt, endsAt } });
-      await this.audit.record(tx, actor.id, 'UPDATED', 'Trip', id, { fields: Object.keys(dto) });
-      if (
-        startsAt.getTime() !== trip.startsAt.getTime() ||
-        endsAt.getTime() !== trip.endsAt.getTime()
-      ) {
-        const registrations = await tx.tripRegistration.findMany({
-          where: { tripId: id, status: { in: [...active] } },
-          select: { userId: true },
-        });
-        await this.notifications.notify(
-          tx,
-          registrations.map((row) => row.userId),
-          'TripRescheduled',
-          { tripId: id, title: dto.title ?? trip.title, startsAt: startsAt.toISOString() },
-        );
-      }
-    });
+    await retryTransaction(() =>
+      this.prisma.$transaction(async (tx) => {
+        await lockActiveUser(tx, actor.id);
+        const trip = await this.lock(tx, id);
+        await assertCurator(tx, actor, trip.placeId);
+        if (dto.placeId && dto.placeId !== trip.placeId)
+          throw new ApiException(ErrorCode.FORBIDDEN_PLACE);
+        const startsAt = dto.startsAt ? new Date(dto.startsAt) : trip.startsAt,
+          endsAt = dto.endsAt ? new Date(dto.endsAt) : trip.endsAt;
+        assertDates(startsAt, endsAt);
+        if (
+          (dto.startsAt || dto.endsAt || dto.capacity !== undefined) &&
+          !['DRAFT', 'OPEN', 'CLOSED'].includes(trip.status)
+        )
+          throw new ApiException(ErrorCode.INVALID_TRANSITION);
+        if (
+          dto.capacity !== undefined &&
+          dto.capacity <
+            (await tx.tripRegistration.count({ where: { tripId: id, status: 'CONFIRMED' } }))
+        )
+          throw new ApiException(ErrorCode.TRIP_FULL);
+        const updated = await tx.trip.update({ where: { id }, data: { ...dto, startsAt, endsAt } });
+        await this.audit.record(tx, actor.id, 'UPDATED', 'Trip', id, { fields: Object.keys(dto) });
+        if (
+          startsAt.getTime() !== trip.startsAt.getTime() ||
+          endsAt.getTime() !== trip.endsAt.getTime()
+        ) {
+          const registrations = await tx.tripRegistration.findMany({
+            where: { tripId: id, status: { in: [...active] } },
+            select: { userId: true },
+          });
+          await this.notifications.notify(
+            tx,
+            registrations.map((row) => row.userId),
+            'TripRescheduled',
+            { tripId: id, title: dto.title ?? trip.title, startsAt: startsAt.toISOString() },
+          );
+        }
+        if (updated.capacity > trip.capacity)
+          await promoteTripWaitlist(tx, this.audit, this.notifications, updated);
+      }),
+    );
     await this.schedule(id);
     return this.detail(actor, id);
   }
   async changeStatus(actor: Actor, id: string, status: TripStatus, cancelReason?: string) {
-    await this.prisma.$transaction(async (tx) => {
-      await lockActiveUser(tx, actor.id);
-      const trip = await this.lock(tx, id);
-      await assertCurator(tx, actor, trip.placeId);
-      if (status === 'REPORTED') throw new ApiException(ErrorCode.INVALID_TRANSITION);
-      this.audit.assertTransition('TripStatus', trip.status, status);
-      if (status === 'OPEN' && trip.startsAt.getTime() <= Date.now())
-        throw new ApiException(ErrorCode.TRIP_NOT_OPEN);
-      if (status === 'CANCELLED' && !cancelReason?.trim())
-        throw new ApiException(ErrorCode.VALIDATION_ERROR, { reason: 'Укажите причину отмены.' });
-      if (status === 'DONE') {
-        if (
-          trip.startsAt.getTime() > Date.now() ||
-          (await tx.tripRegistration.count({ where: { tripId: id, status: 'CONFIRMED' } }))
-        )
-          throw new ApiException(ErrorCode.INVALID_TRANSITION);
-      }
-      if (status === 'CANCELLED' || status === 'DONE') {
-        const registrations = await tx.tripRegistration.findMany({
-          where: {
-            tripId: id,
-            status: { in: status === 'DONE' ? ['PENDING', 'WAITLIST'] : [...active] },
-          },
-        });
-        for (const row of registrations) {
-          await this.audit.transition(
-            tx,
-            actor.id,
-            'TripRegistration',
-            row.id,
-            'RegistrationStatus',
-            row.status,
-            'CANCELLED',
-          );
-          await tx.tripRegistration.update({
-            where: { id: row.id },
-            data: { status: 'CANCELLED' },
-          });
+    await retryTransaction(() =>
+      this.prisma.$transaction(async (tx) => {
+        await lockActiveUser(tx, actor.id);
+        const trip = await this.lock(tx, id);
+        await assertCurator(tx, actor, trip.placeId);
+        if (status === 'REPORTED') throw new ApiException(ErrorCode.INVALID_TRANSITION);
+        this.audit.assertTransition('TripStatus', trip.status, status);
+        if (status === 'OPEN' && trip.startsAt.getTime() <= Date.now())
+          throw new ApiException(ErrorCode.TRIP_NOT_OPEN);
+        if (status === 'CANCELLED' && !cancelReason?.trim())
+          throw new ApiException(ErrorCode.VALIDATION_ERROR, { reason: 'Укажите причину отмены.' });
+        if (status === 'DONE') {
+          if (
+            trip.startsAt.getTime() > Date.now() ||
+            (await tx.tripRegistration.count({ where: { tripId: id, status: 'CONFIRMED' } }))
+          )
+            throw new ApiException(ErrorCode.INVALID_TRANSITION);
         }
-        await this.notifications.notify(
-          tx,
-          registrations.map((row) => row.userId),
-          status === 'CANCELLED' ? 'TripCancelled' : 'RegistrationCancelled',
-          { tripId: id, title: trip.title, startsAt: trip.startsAt.toISOString() },
-        );
-      }
-      await this.audit.transition(tx, actor.id, 'Trip', id, 'TripStatus', trip.status, status);
-      await tx.trip.update({
-        where: { id },
-        data: { status, ...(status === 'CANCELLED' ? { cancelReason } : {}) },
-      });
-    });
+        if (status === 'CANCELLED' || status === 'DONE') {
+          const registrations = await tx.tripRegistration.findMany({
+            where: {
+              tripId: id,
+              status: { in: status === 'DONE' ? ['PENDING', 'WAITLIST'] : [...active] },
+            },
+          });
+          for (const row of registrations) {
+            await this.audit.transition(
+              tx,
+              actor.id,
+              'TripRegistration',
+              row.id,
+              'RegistrationStatus',
+              row.status,
+              'CANCELLED',
+            );
+            await tx.tripRegistration.update({
+              where: { id: row.id },
+              data: { status: 'CANCELLED' },
+            });
+          }
+          await this.notifications.notify(
+            tx,
+            registrations.map((row) => row.userId),
+            status === 'CANCELLED' ? 'TripCancelled' : 'RegistrationCancelled',
+            { tripId: id, title: trip.title, startsAt: trip.startsAt.toISOString() },
+          );
+        }
+        await this.audit.transition(tx, actor.id, 'Trip', id, 'TripStatus', trip.status, status);
+        const updated = await tx.trip.update({
+          where: { id },
+          data: { status, ...(status === 'CANCELLED' ? { cancelReason } : {}) },
+        });
+        if (status === 'OPEN')
+          await promoteTripWaitlist(tx, this.audit, this.notifications, updated);
+      }),
+    );
     await this.schedule(id);
     return this.detail(actor, id);
   }
   async register(actor: Actor, id: string, comment?: string) {
-    return this.prisma.$transaction(async (tx) => {
-      const user = await lockActiveUser(tx, actor.id);
-      const trip = await this.lock(tx, id);
-      const existing = await tx.tripRegistration.findUnique({
-        where: { tripId_userId: { tripId: id, userId: actor.id } },
-      });
-      assertTripRegistration(user.role, trip.status, trip.startsAt, Boolean(existing));
-      const confirmed = await tx.tripRegistration.count({
-        where: { tripId: id, status: 'CONFIRMED' },
-      });
-      const status = initialTripRegistration(confirmed, trip.capacity);
-      const row = await tx.tripRegistration.create({
-        data: { tripId: id, userId: actor.id, status, comment },
-      });
-      await this.audit.record(tx, actor.id, 'CREATED', 'TripRegistration', row.id, { status });
-      if (status === 'WAITLIST')
-        await this.notifications.notify(tx, [actor.id], 'RegistrationWaitlisted', {
-          tripId: id,
-          title: trip.title,
-          startsAt: trip.startsAt.toISOString(),
+    return retryTransaction(() =>
+      this.prisma.$transaction(async (tx) => {
+        const user = await lockActiveUser(tx, actor.id);
+        const trip = await this.lock(tx, id);
+        const existing = await tx.tripRegistration.findUnique({
+          where: { tripId_userId: { tripId: id, userId: actor.id } },
         });
-      const curators = await tx.placeCurator.findMany({
-        where: { placeId: trip.placeId, user: { role: 'VOLUNTEER', isBlocked: false } },
-        select: { userId: true },
-      });
-      await this.notifications.notify(
-        tx,
-        curators.map((item) => item.userId),
-        'NewRegistrationForCurator',
-        { tripId: id, title: trip.title, startsAt: trip.startsAt.toISOString() },
-      );
-      return { id: row.id, status: row.status, createdAt: row.createdAt };
-    });
+        assertTripRegistration(user.role, trip.status, trip.startsAt, Boolean(existing));
+        await promoteTripWaitlist(tx, this.audit, this.notifications, trip);
+        const status = initialTripRegistration(await occupiedTripPlaces(tx, id), trip.capacity);
+        const row = await tx.tripRegistration.create({
+          data: { tripId: id, userId: actor.id, status, comment },
+        });
+        await this.audit.record(tx, actor.id, 'CREATED', 'TripRegistration', row.id, { status });
+        if (status === 'WAITLIST')
+          await this.notifications.notify(tx, [actor.id], 'RegistrationWaitlisted', {
+            tripId: id,
+            title: trip.title,
+            startsAt: trip.startsAt.toISOString(),
+          });
+        const curators = await tx.placeCurator.findMany({
+          where: { placeId: trip.placeId, user: { role: 'VOLUNTEER', isBlocked: false } },
+          select: { userId: true },
+        });
+        await this.notifications.notify(
+          tx,
+          curators.map((item) => item.userId),
+          'NewRegistrationForCurator',
+          { tripId: id, title: trip.title, startsAt: trip.startsAt.toISOString() },
+        );
+        return { id: row.id, status: row.status, createdAt: row.createdAt };
+      }),
+    );
   }
   async changeRegistration(actor: Actor, id: string, status: RegistrationStatus, self = false) {
-    return this.prisma.$transaction(async (tx) => {
-      await lockActiveUser(tx, actor.id);
-      const initial = await tx.tripRegistration.findUnique({ where: { id } });
-      if (!initial) throw new ApiException(ErrorCode.NOT_FOUND);
-      const trip = await this.lock(tx, initial.tripId);
-      if (self) {
-        if (initial.userId !== actor.id || status !== 'CANCELLED')
-          throw new ApiException(ErrorCode.FORBIDDEN);
-      } else await assertCurator(tx, actor, trip.placeId);
-      const row = await tx.tripRegistration.findUniqueOrThrow({ where: { id } });
-      this.audit.assertTransition('RegistrationStatus', row.status, status);
-      if (status === 'CONFIRMED') {
-        if (!['OPEN', 'CLOSED'].includes(trip.status))
-          throw new ApiException(ErrorCode.TRIP_NOT_OPEN);
-        const user = await tx.user.findUniqueOrThrow({ where: { id: row.userId } });
-        if (!['VOLUNTEER', 'ADMIN'].includes(user.role) || user.isBlocked || user.anonymizedAt)
-          throw new ApiException(ErrorCode.FORBIDDEN);
-        assertFreePlace(
-          await tx.tripRegistration.count({ where: { tripId: trip.id, status: 'CONFIRMED' } }),
-          trip.capacity,
+    return retryTransaction(() =>
+      this.prisma.$transaction(async (tx) => {
+        await lockActiveUser(tx, actor.id);
+        const initial = await tx.tripRegistration.findUnique({ where: { id } });
+        if (!initial) throw new ApiException(ErrorCode.NOT_FOUND);
+        const trip = await this.lock(tx, initial.tripId);
+        if (self) {
+          if (initial.userId !== actor.id || status !== 'CANCELLED')
+            throw new ApiException(ErrorCode.FORBIDDEN);
+        } else await assertCurator(tx, actor, trip.placeId);
+        const row = await tx.tripRegistration.findUniqueOrThrow({ where: { id } });
+        this.audit.assertTransition('RegistrationStatus', row.status, status);
+        if (status === 'CONFIRMED' || status === 'PENDING') {
+          if (!['OPEN', 'CLOSED'].includes(trip.status))
+            throw new ApiException(ErrorCode.TRIP_NOT_OPEN);
+          const user = await tx.user.findUniqueOrThrow({ where: { id: row.userId } });
+          if (!['VOLUNTEER', 'ADMIN'].includes(user.role) || user.isBlocked || user.anonymizedAt)
+            throw new ApiException(ErrorCode.FORBIDDEN);
+          if (status === 'PENDING') {
+            if (trip.startsAt.getTime() <= Date.now())
+              throw new ApiException(ErrorCode.TRIP_NOT_OPEN);
+            await promoteTripWaitlist(tx, this.audit, this.notifications, trip);
+            const promoted = await tx.tripRegistration.findUniqueOrThrow({ where: { id } });
+            if (promoted.status !== 'PENDING') throw new ApiException(ErrorCode.TRIP_FULL);
+            return { id: promoted.id, status: promoted.status, createdAt: promoted.createdAt };
+          }
+          assertFreePlace(
+            await tx.tripRegistration.count({ where: { tripId: trip.id, status: 'CONFIRMED' } }),
+            trip.capacity,
+          );
+        }
+        if ((status === 'ATTENDED' || status === 'NO_SHOW') && trip.startsAt.getTime() > Date.now())
+          throw new ApiException(ErrorCode.INVALID_TRANSITION);
+        await this.audit.transition(
+          tx,
+          actor.id,
+          'TripRegistration',
+          id,
+          'RegistrationStatus',
+          row.status,
+          status,
         );
-      }
-      if ((status === 'ATTENDED' || status === 'NO_SHOW') && trip.startsAt.getTime() > Date.now())
-        throw new ApiException(ErrorCode.INVALID_TRANSITION);
-      await this.audit.transition(
-        tx,
-        actor.id,
-        'TripRegistration',
-        id,
-        'RegistrationStatus',
-        row.status,
-        status,
-      );
-      const updated = await tx.tripRegistration.update({ where: { id }, data: { status } });
-      const type: NotificationType | undefined =
-        status === 'CONFIRMED'
-          ? 'RegistrationConfirmed'
-          : status === 'REJECTED'
-            ? 'RegistrationRejected'
-            : status === 'CANCELLED'
-              ? 'RegistrationCancelled'
-              : undefined;
-      if (type)
-        await this.notifications.notify(tx, [row.userId], type, {
-          tripId: trip.id,
-          title: trip.title,
-          startsAt: trip.startsAt.toISOString(),
-        });
-      if (['CONFIRMED', 'PENDING'].includes(row.status) && status === 'CANCELLED')
-        await promoteTripWaitlist(tx, this.audit, this.notifications, trip);
-      return { id: updated.id, status: updated.status, createdAt: updated.createdAt };
-    });
+        const updated = await tx.tripRegistration.update({ where: { id }, data: { status } });
+        const type: NotificationType | undefined =
+          status === 'CONFIRMED'
+            ? 'RegistrationConfirmed'
+            : status === 'REJECTED'
+              ? 'RegistrationRejected'
+              : status === 'CANCELLED'
+                ? 'RegistrationCancelled'
+                : undefined;
+        if (type)
+          await this.notifications.notify(tx, [row.userId], type, {
+            tripId: trip.id,
+            title: trip.title,
+            startsAt: trip.startsAt.toISOString(),
+          });
+        if (
+          ['CONFIRMED', 'PENDING'].includes(row.status) &&
+          ['CANCELLED', 'REJECTED'].includes(status)
+        )
+          await promoteTripWaitlist(tx, this.audit, this.notifications, trip);
+        return { id: updated.id, status: updated.status, createdAt: updated.createdAt };
+      }),
+    );
   }
   async cancelOwn(actor: Actor, tripId: string) {
     const row = await this.prisma.tripRegistration.findUnique({

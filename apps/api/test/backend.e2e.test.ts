@@ -260,7 +260,10 @@ describe('Поездки, анкета, приватность и уведомл
       .set('Authorization', `Bearer ${second.access}`)
       .send({});
     expect(a.body.status).toBe('PENDING');
-    expect(b.body.status).toBe('PENDING');
+    expect(b.body.status).toBe('WAITLIST');
+    // Legacy data can contain more pending invitations than capacity. Even then,
+    // simultaneous curator decisions must not confirm the last place twice.
+    await prisma.tripRegistration.update({ where: { id: b.body.id }, data: { status: 'PENDING' } });
     const results = await Promise.all(
       [a, b].map((row) =>
         req('patch', `/curator/registrations/${row.body.id}`)

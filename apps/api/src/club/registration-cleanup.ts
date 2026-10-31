@@ -4,7 +4,7 @@ import { promoteTripWaitlist } from './trip-waitlist.js';
 
 const active = ['PENDING', 'CONFIRMED', 'WAITLIST'] as const;
 
-/** Called inside account anonymization, after locking and disabling the user. */
+/** Called after locking the User and updating their eligibility in the same transaction. */
 export async function cancelFutureRegistrations(
   tx: Tx,
   audit: AuditService,
@@ -12,6 +12,7 @@ export async function cancelFutureRegistrations(
   userId: string,
   actorId: string,
   now: Date,
+  scope: 'ALL' | 'VOLUNTEER_ONLY' = 'ALL',
 ): Promise<void> {
   // Match registration's parent locks, and use stable order for multi-row cleanup.
   const trips = await tx.tripRegistration.findMany({
@@ -36,6 +37,11 @@ export async function cancelFutureRegistrations(
       'CANCELLED',
     );
     await tx.tripRegistration.update({ where: { id: row.id }, data: { status: 'CANCELLED' } });
+    await notifications.notify(tx, [userId], 'RegistrationCancelled', {
+      tripId: row.trip.id,
+      title: row.trip.title,
+      startsAt: row.trip.startsAt.toISOString(),
+    });
     if (row.status === 'CONFIRMED' || row.status === 'PENDING')
       await promoteTripWaitlist(tx, audit, notifications, row.trip, now);
   }
@@ -50,7 +56,12 @@ export async function cancelFutureRegistrations(
       where: { id: initial.id },
       include: { event: true },
     });
-    if (row.event.startsAt <= now || !active.some((status) => status === row.status)) continue;
+    if (
+      row.event.startsAt <= now ||
+      !active.some((status) => status === row.status) ||
+      (scope === 'VOLUNTEER_ONLY' && !row.event.volunteersOnly)
+    )
+      continue;
     await audit.transition(
       tx,
       actorId,
@@ -61,8 +72,14 @@ export async function cancelFutureRegistrations(
       'CANCELLED',
     );
     await tx.eventRegistration.update({ where: { id: row.id }, data: { status: 'CANCELLED' } });
+    await notifications.notify(tx, [userId], 'EventCancelled', {
+      eventId: row.event.id,
+      title: row.event.title,
+      startsAt: row.event.startsAt.toISOString(),
+    });
   }
 
+  if (scope === 'VOLUNTEER_ONLY') return;
   const days = await tx.openDayRegistration.findMany({
     where: { userId, cancelledAt: null, session: { startsAt: { gt: now } } },
     orderBy: { sessionId: 'asc' },

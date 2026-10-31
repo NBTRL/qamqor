@@ -3,6 +3,9 @@ import { ErrorCode, telegramIdSchema } from '@club/shared';
 import type { Prisma, User } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AuditService } from '../common/audit.service.js';
+import { retryTransaction } from '../common/transaction-retry.js';
+import { cancelFutureRegistrations } from '../club/registration-cleanup.js';
+import { NotificationService } from '../notifications/notification.service.js';
 import { ApiException } from '../common/api-exception.js';
 import { MeService } from '../auth/me.service.js';
 import { pageArgs, pageResult, type PageQueryDto } from '../common/query.dto.js';
@@ -15,6 +18,7 @@ export class UsersService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly me: MeService,
+    private readonly notifications: NotificationService,
   ) {}
   private async project(user: User) {
     return {
@@ -69,35 +73,47 @@ export class UsersService {
     return this.project(row);
   }
   async update(actor: Actor, id: string, dto: UserPatchDto) {
-    const row = await this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT "id" FROM "users" WHERE "id"=${id}::uuid FOR UPDATE`;
-      const user = await tx.user.findUniqueOrThrow({ where: { id } });
-      if (user.anonymizedAt) throw new ApiException(ErrorCode.FORBIDDEN);
-      const emailChanged = dto.email !== undefined && dto.email !== user.email;
-      if (
-        (dto.role === 'ADMIN' || user.role === 'ADMIN') &&
-        (!user.emailVerifiedAt || !user.email || emailChanged)
-      )
-        throw new ApiException(ErrorCode.ADMIN_EMAIL_REQUIRED);
-      const updated = await tx.user.update({
-        where: { id },
-        data: { ...dto, ...(emailChanged ? { emailVerifiedAt: null } : {}) },
-      });
-      if (dto.role && dto.role !== user.role) {
-        if (dto.role !== 'VOLUNTEER') await tx.placeCurator.deleteMany({ where: { userId: id } });
-        await this.audit.record(tx, actor.id, 'ROLE_CHANGED', 'User', id, {
-          from: user.role,
-          to: dto.role,
+    const row = await retryTransaction(() =>
+      this.prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT "id" FROM "users" WHERE "id"=${id}::uuid FOR UPDATE`;
+        const user = await tx.user.findUniqueOrThrow({ where: { id } });
+        if (user.anonymizedAt) throw new ApiException(ErrorCode.FORBIDDEN);
+        const emailChanged = dto.email !== undefined && dto.email !== user.email;
+        if (
+          (dto.role === 'ADMIN' || user.role === 'ADMIN') &&
+          (!user.emailVerifiedAt || !user.email || emailChanged)
+        )
+          throw new ApiException(ErrorCode.ADMIN_EMAIL_REQUIRED);
+        const updated = await tx.user.update({
+          where: { id },
+          data: { ...dto, ...(emailChanged ? { emailVerifiedAt: null } : {}) },
         });
-      }
-      if (dto.isBlocked)
-        await tx.refreshToken.updateMany({
-          where: { userId: id },
-          data: { revokedAt: new Date() },
-        });
-      await this.audit.record(tx, actor.id, 'UPDATED', 'User', id, { fields: Object.keys(dto) });
-      return updated;
-    });
+        if (dto.role && dto.role !== user.role) {
+          if (dto.role !== 'VOLUNTEER') await tx.placeCurator.deleteMany({ where: { userId: id } });
+          await this.audit.record(tx, actor.id, 'ROLE_CHANGED', 'User', id, {
+            from: user.role,
+            to: dto.role,
+          });
+        }
+        if (dto.isBlocked)
+          await tx.refreshToken.updateMany({
+            where: { userId: id },
+            data: { revokedAt: new Date() },
+          });
+        if (updated.isBlocked || updated.role === 'CANDIDATE')
+          await cancelFutureRegistrations(
+            tx,
+            this.audit,
+            this.notifications,
+            id,
+            actor.id,
+            new Date(),
+            updated.isBlocked ? 'ALL' : 'VOLUNTEER_ONLY',
+          );
+        await this.audit.record(tx, actor.id, 'UPDATED', 'User', id, { fields: Object.keys(dto) });
+        return updated;
+      }),
+    );
     return this.project(row);
   }
   async remove(actor: Actor, id: string) {
