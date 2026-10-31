@@ -122,7 +122,12 @@ export class MediaItemWriteDto {
   @ApiProperty({ enum: ['PHOTO', 'VIDEO'], enumName: 'MediaType' })
   @IsIn(['PHOTO', 'VIDEO'])
   type!: 'PHOTO' | 'VIDEO';
-  @ApiProperty({ maxLength: 2000, format: 'uri' })
+  @ApiProperty({
+    maxLength: 2000,
+    format: 'uri',
+    description:
+      'Ссылка на фото или видео выбранного типа. Управляемые изображения недопустимы для VIDEO. При смене типа нужна новая ссылка.',
+  })
   @IsString()
   @MaxLength(2000)
   @IsUrl({ require_tld: false, protocols: ['http', 'https'], require_protocol: true })

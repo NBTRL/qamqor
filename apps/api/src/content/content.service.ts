@@ -1,9 +1,13 @@
 import { lockActiveUser } from '../common/active-user.js';
 import { getEnvironment } from '../config/environment.js';
-import { lockFileReferences, retainFileReferences } from '../storage/file-references.js';
+import {
+  fileReferences,
+  lockFileReferences,
+  retainFileReferences,
+} from '../storage/file-references.js';
 import { Injectable } from '@nestjs/common';
 import sanitizeHtml from 'sanitize-html';
-import { ErrorCode, hasRichTextContent } from '@club/shared';
+import { ErrorCode, hasRichTextContent, UPLOAD_IMAGE_TYPES } from '@club/shared';
 import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AuditService, type Tx } from '../common/audit.service.js';
@@ -115,6 +119,33 @@ export class ContentService {
     if (!row) throw new ApiException(ErrorCode.NOT_FOUND);
     return row;
   }
+  private async validateMediaItem(tx: Tx, data: Record<string, unknown>, current: Row | null) {
+    const type = data.type ?? current?.type;
+    const url = data.url ?? current?.url;
+    if (!['PHOTO', 'VIDEO'].includes(String(type)) || typeof url !== 'string')
+      throw new ApiException(ErrorCode.VALIDATION_ERROR);
+    const invalid = (message: string) =>
+      new ApiException(ErrorCode.VALIDATION_ERROR, {
+        fields: [{ path: 'url', messages: [message] }],
+      });
+    if (current && type !== current.type && (data.url === undefined || url === current.url))
+      throw invalid('При смене типа укажите новую ссылку.');
+    const refs = fileReferences(url, getEnvironment());
+    if (!refs.length) return;
+    const assets = await tx.uploadAsset.findMany({
+      where: { OR: refs },
+      select: { contentType: true },
+    });
+    if (
+      assets.length !== refs.length ||
+      assets.some((asset) =>
+        type === 'PHOTO'
+          ? !(UPLOAD_IMAGE_TYPES as readonly string[]).includes(asset.contentType)
+          : !asset.contentType.startsWith('video/'),
+      )
+    )
+      throw invalid('Тип загруженного файла не соответствует выбранному типу медиа.');
+  }
   async write(actor: Actor, name: ResourceName, input: Record<string, unknown>, id?: string) {
     const config = this.config(name),
       data = { ...input };
@@ -147,6 +178,8 @@ export class ContentService {
       const model = this.model(tx, name);
       const current = id ? await model.findUnique({ where: { id } }) : null;
       if (id && !current) throw new ApiException(ErrorCode.NOT_FOUND);
+      // The file-reference lock also serializes partial media writes: validate the final pair.
+      if (name === 'media-items') await this.validateMediaItem(tx, data, current);
       if (
         config.status &&
         data.status !== undefined &&
