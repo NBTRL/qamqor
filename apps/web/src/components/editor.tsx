@@ -3,6 +3,7 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
 import { Upload } from './upload';
+import type { UploadStateHandler } from './upload-guard';
 import { imagePreviewNodeView } from './editor-image-preview';
 const PreviewImage = Image.extend({
   addNodeView() {
@@ -12,9 +13,13 @@ const PreviewImage = Image.extend({
 export default function Editor({
   value,
   onChange,
+  onUploadStateChange,
+  disabled,
 }: {
   value: string;
   onChange: (value: string) => void;
+  onUploadStateChange?: UploadStateHandler;
+  disabled?: boolean;
 }) {
   const editor = useEditor({
     extensions: [StarterKit, PreviewImage],
@@ -59,6 +64,8 @@ export default function Editor({
       <EditorContent editor={editor} />
       <Upload
         purpose="CONTENT"
+        onStateChange={onUploadStateChange}
+        disabled={disabled}
         onUploaded={(upload) =>
           editor?.chain().focus().setImage({ src: upload.fileUrl, alt: 'Иллюстрация' }).run()
         }

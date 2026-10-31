@@ -20,6 +20,7 @@ import { DataTable } from './data-table';
 import { RecordForm } from './record-form';
 import { Button, ButtonLink, ErrorNotice, Loading, Field } from './ui';
 import { Upload } from './upload';
+import { useUploadGuard } from './upload-guard';
 export function CuratorHome() {
   const [status, setStatus] = useState<TripStatus>(TripStatus.OPEN);
   const places = useQuery({
@@ -264,6 +265,7 @@ export function TripReport({ id }: { id: string }) {
 }
 function ReportForm({ id, initial }: { id: string; initial?: Model<'ReportResponseDto'> | null }) {
   const cache = useQueryClient();
+  const uploads = useUploadGuard();
   const form = useForm<Model<'ReportWriteDto'>>({
     resolver: zodResolver(schemaFor('ReportWriteDto')),
     defaultValues: {
@@ -282,7 +284,18 @@ function ReportForm({ id, initial }: { id: string; initial?: Model<'ReportRespon
     onSuccess: () => void cache.invalidateQueries({ queryKey: ['trip', id] }),
   });
   return (
-    <form className="form" onSubmit={form.handleSubmit((body) => mutation.mutate(body))}>
+    <form
+      className="form"
+      onSubmit={(event) => {
+        if (uploads.isBlocked() || mutation.isPending || form.formState.isSubmitting) {
+          event.preventDefault();
+          return;
+        }
+        void form.handleSubmit((body) => {
+          if (!uploads.isBlocked() && !mutation.isPending) mutation.mutate(body);
+        })(event);
+      }}
+    >
       <Field label="Текст отчета" error={form.formState.errors.text?.message}>
         <textarea {...form.register('text')} minLength={20} />
       </Field>
@@ -299,6 +312,8 @@ function ReportForm({ id, initial }: { id: string; initial?: Model<'ReportRespon
         purpose="REPORT_PHOTO"
         tripId={id}
         onUploaded={(upload) => photos.append({ uploadId: upload.uploadId, isPublic: false })}
+        onStateChange={uploads.onStateChange}
+        disabled={mutation.isPending || form.formState.isSubmitting}
       />
       <p className="notice">
         Фото по умолчанию закрыты. Перед публикацией фотографий детей убедитесь, что у Клуба есть
@@ -317,7 +332,9 @@ function ReportForm({ id, initial }: { id: string; initial?: Model<'ReportRespon
         </div>
       ))}
       <ErrorNotice error={mutation.error} />
-      <Button disabled={mutation.isPending}>Опубликовать отчет</Button>
+      <Button disabled={mutation.isPending || form.formState.isSubmitting || uploads.blocked}>
+        Опубликовать отчет
+      </Button>
       {mutation.isSuccess && <p role="status">Отчет сохранен.</p>}
     </form>
   );
