@@ -214,6 +214,7 @@ beforeAll(async () => {
       type: 'ORPHANAGE',
       regionId,
       city: 'Test',
+      address: 'SYNTHETIC TEST ADDRESS',
       description: '',
     },
   });
