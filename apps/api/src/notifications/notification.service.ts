@@ -177,7 +177,12 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
         });
         return null;
       }
-      if (!(await this.reminderCurrent(tx, current))) {
+      const obsolete = !(await this.rescheduleCurrent(tx, current))
+        ? 'SCHEDULE_OBSOLETE'
+        : !(await this.reminderCurrent(tx, current))
+          ? 'REMINDER_OBSOLETE'
+          : null;
+      if (obsolete) {
         await this.audit.transition(
           tx,
           null,
@@ -189,7 +194,7 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
         );
         await tx.notification.update({
           where: { id },
-          data: { status: 'FAILED', lastError: 'REMINDER_OBSOLETE' },
+          data: { status: 'FAILED', lastError: obsolete },
         });
         return null;
       }
@@ -241,6 +246,41 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
         error instanceof GrammyError ? Number(error.parameters.retry_after ?? 0) * 1000 : 0;
       throw new RetryDelivery(Math.max(retry, 1000 * 2 ** (row.attempts - 1)));
     }
+  }
+  private async rescheduleCurrent(
+    tx: Tx,
+    row: Notification & { user: { role: string } },
+  ): Promise<boolean> {
+    if (row.type !== 'EventRescheduled' && row.type !== 'OpenDayRescheduled') return true;
+    const data = row.payload;
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return false;
+    if (row.type === 'EventRescheduled') {
+      if (typeof data.eventId !== 'string' || !isUUID(data.eventId)) return false;
+      const registration = await tx.eventRegistration.findUnique({
+        where: { eventId_userId: { eventId: data.eventId, userId: row.userId } },
+        include: { event: true },
+      });
+      return Boolean(
+        registration &&
+        ['PENDING', 'CONFIRMED', 'WAITLIST'].includes(registration.status) &&
+        (!registration.event.volunteersOnly || ['VOLUNTEER', 'ADMIN'].includes(row.user.role)) &&
+        registration.event.startsAt.toISOString() === data.startsAt &&
+        registration.event.endsAt.toISOString() === data.endsAt &&
+        registration.event.location === data.location,
+      );
+    }
+    if (typeof data.sessionId !== 'string' || !isUUID(data.sessionId)) return false;
+    const registration = await tx.openDayRegistration.findUnique({
+      where: { sessionId_userId: { sessionId: data.sessionId, userId: row.userId } },
+      include: { session: true },
+    });
+    return Boolean(
+      registration &&
+      !registration.cancelledAt &&
+      !registration.attended &&
+      registration.session.startsAt.toISOString() === data.startsAt &&
+      registration.session.location === data.location,
+    );
   }
   private async reminderCurrent(tx: Tx, row: Notification): Promise<boolean> {
     const tripReminder = row.type === 'TripReminder24h' || row.type === 'TripReminder3h';

@@ -2062,7 +2062,7 @@ export interface components {
             id: string;
         };
         /** @enum {string} */
-        NotificationType: "ApplicationStatusChanged" | "RegistrationConfirmed" | "RegistrationRejected" | "RegistrationWaitlisted" | "RegistrationPromotedFromWaitlist" | "RegistrationCancelled" | "TripCancelled" | "TripRescheduled" | "TripReminder24h" | "TripReminder3h" | "NewRegistrationForCurator" | "ReportRequestedFromCurator" | "OpenDayReminder" | "EventRegistered" | "EventCancelled" | "OpenDayRegistered";
+        NotificationType: "ApplicationStatusChanged" | "RegistrationConfirmed" | "RegistrationRejected" | "RegistrationWaitlisted" | "RegistrationPromotedFromWaitlist" | "RegistrationCancelled" | "TripCancelled" | "TripRescheduled" | "TripReminder24h" | "TripReminder3h" | "NewRegistrationForCurator" | "ReportRequestedFromCurator" | "OpenDayReminder" | "EventRegistered" | "EventCancelled" | "OpenDayRegistered" | "EventRescheduled" | "OpenDayRescheduled";
         NotificationResponseDto: {
             /** Format: uuid */
             id: string;

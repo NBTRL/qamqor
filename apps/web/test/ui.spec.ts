@@ -676,14 +676,21 @@ test('unverified email stays disabled while notification settings can be saved',
   await page.route('**/api/v1/me/notification-settings', async (route) => {
     if (route.request().method() === 'PUT') {
       saved = route.request().postDataJSON();
-      await route.fulfill({ json: { items: saved?.items, total: 16, page: 1, limit: 16 } });
+      await route.fulfill({
+        json: {
+          items: saved?.items,
+          total: NOTIFICATION_TYPES.length,
+          page: 1,
+          limit: NOTIFICATION_TYPES.length,
+        },
+      });
     } else
       await route.fulfill({
         json: {
           items: NOTIFICATION_TYPES.map((type) => ({ type, telegram: true, email: true })),
-          total: 16,
+          total: NOTIFICATION_TYPES.length,
           page: 1,
-          limit: 16,
+          limit: NOTIFICATION_TYPES.length,
         },
       });
   });

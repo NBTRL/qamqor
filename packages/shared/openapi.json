@@ -11152,7 +11152,9 @@
           "OpenDayReminder",
           "EventRegistered",
           "EventCancelled",
-          "OpenDayRegistered"
+          "OpenDayRegistered",
+          "EventRescheduled",
+          "OpenDayRescheduled"
         ]
       },
       "NotificationResponseDto": {
@@ -11251,7 +11253,7 @@
         "type": "object",
         "properties": {
           "items": {
-            "maxItems": 16,
+            "maxItems": 18,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/SettingDto"

@@ -4,6 +4,7 @@ import { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AuditService } from '../common/audit.service.js';
 import { lockActiveUser } from '../common/active-user.js';
+import { retryTransaction } from '../common/transaction-retry.js';
 import { ApiException } from '../common/api-exception.js';
 import type { Actor } from '../common/http.js';
 import { hasPrivateAccess } from '../common/http.js';
@@ -53,40 +54,73 @@ export class EventsService {
     return data;
   }
   async write(actor: Actor, dto: EventWriteDto | EventPatchDto, id?: string) {
-    return this.prisma.$transaction(async (tx) => {
-      if (id) await tx.$queryRaw`SELECT "id" FROM "events" WHERE "id"=${id}::uuid FOR UPDATE`;
-      const current = id ? await tx.event.findUniqueOrThrow({ where: { id } }) : null;
-      const merged = { ...current, ...dto };
-      assertEventType(merged.type!);
-      const startsAt = new Date(merged.startsAt!),
-        endsAt = new Date(merged.endsAt!);
-      assertDates(startsAt, endsAt);
-      if (
-        id &&
-        merged.capacity !== null &&
-        merged.capacity !== undefined &&
-        merged.capacity <
-          (await tx.eventRegistration.count({ where: { eventId: id, status: 'CONFIRMED' } }))
-      )
-        throw new ApiException(ErrorCode.EVENT_FULL);
-      const data = { ...dto, startsAt, endsAt };
-      const row = id
-        ? await tx.event.update({ where: { id }, data })
-        : await tx.event.create({
-            data: {
-              ...data,
-              type: merged.type!,
-              title: merged.title!,
-              description: merged.description!,
-              location: merged.location!,
-              createdById: actor.id,
+    return retryTransaction(() =>
+      this.prisma.$transaction(async (tx) => {
+        if (id) await tx.$queryRaw`SELECT "id" FROM "events" WHERE "id"=${id}::uuid FOR UPDATE`;
+        const current = id ? await tx.event.findUniqueOrThrow({ where: { id } }) : null;
+        const merged = { ...current, ...dto };
+        assertEventType(merged.type!);
+        const startsAt = new Date(merged.startsAt!),
+          endsAt = new Date(merged.endsAt!);
+        assertDates(startsAt, endsAt);
+        if (
+          id &&
+          merged.capacity !== null &&
+          merged.capacity !== undefined &&
+          merged.capacity <
+            (await tx.eventRegistration.count({ where: { eventId: id, status: 'CONFIRMED' } }))
+        )
+          throw new ApiException(ErrorCode.EVENT_FULL);
+        const data = { ...dto, startsAt, endsAt };
+        const row = id
+          ? await tx.event.update({ where: { id }, data })
+          : await tx.event.create({
+              data: {
+                ...data,
+                type: merged.type!,
+                title: merged.title!,
+                description: merged.description!,
+                location: merged.location!,
+                createdById: actor.id,
+              },
+            });
+        await this.audit.record(tx, actor.id, id ? 'UPDATED' : 'CREATED', 'Event', row.id, {
+          fields: Object.keys(dto),
+        });
+        if (
+          current &&
+          (row.startsAt.getTime() !== current.startsAt.getTime() ||
+            row.endsAt.getTime() !== current.endsAt.getTime() ||
+            row.location !== current.location)
+        ) {
+          const registrations = await tx.eventRegistration.findMany({
+            where: {
+              eventId: row.id,
+              status: { in: ['PENDING', 'CONFIRMED', 'WAITLIST'] },
+              user: {
+                isBlocked: false,
+                anonymizedAt: null,
+                ...(row.volunteersOnly ? { role: { in: ['VOLUNTEER', 'ADMIN'] } } : {}),
+              },
             },
+            select: { userId: true },
           });
-      await this.audit.record(tx, actor.id, id ? 'UPDATED' : 'CREATED', 'Event', row.id, {
-        fields: Object.keys(dto),
-      });
-      return row;
-    });
+          await this.notifications.notify(
+            tx,
+            registrations.map((r) => r.userId),
+            'EventRescheduled',
+            {
+              eventId: row.id,
+              title: row.title,
+              startsAt: row.startsAt.toISOString(),
+              endsAt: row.endsAt.toISOString(),
+              location: row.location,
+            },
+          );
+        }
+        return row;
+      }),
+    );
   }
   async register(actor: Actor, id: string) {
     return this.prisma.$transaction(async (tx) => {
@@ -274,24 +308,60 @@ export class OpenDaysService {
     return pageResult(items, total, query);
   }
   async write(actor: Actor, dto: OpenDayWriteDto | OpenDayPatchDto, id?: string) {
-    return this.prisma.$transaction(async (tx) => {
-      if (id) {
-        await tx.$queryRaw`SELECT "id" FROM "open_day_sessions" WHERE "id"=${id}::uuid FOR UPDATE`;
+    return retryTransaction(() =>
+      this.prisma.$transaction(async (tx) => {
+        if (id) {
+          await tx.$queryRaw`SELECT "id" FROM "open_day_sessions" WHERE "id"=${id}::uuid FOR UPDATE`;
+          if (
+            dto.capacity !== undefined &&
+            dto.capacity <
+              (await tx.openDayRegistration.count({ where: { sessionId: id, cancelledAt: null } }))
+          )
+            throw new ApiException(ErrorCode.OPEN_DAY_FULL);
+        }
+        const current = id ? await tx.openDaySession.findUniqueOrThrow({ where: { id } }) : null;
+        const row = id
+          ? await tx.openDaySession.update({ where: { id }, data: dto })
+          : await tx.openDaySession.create({ data: dto as OpenDayWriteDto });
+        await this.audit.record(
+          tx,
+          actor.id,
+          id ? 'UPDATED' : 'CREATED',
+          'OpenDaySession',
+          row.id,
+          {
+            fields: Object.keys(dto),
+          },
+        );
         if (
-          dto.capacity !== undefined &&
-          dto.capacity <
-            (await tx.openDayRegistration.count({ where: { sessionId: id, cancelledAt: null } }))
-        )
-          throw new ApiException(ErrorCode.OPEN_DAY_FULL);
-      }
-      const row = id
-        ? await tx.openDaySession.update({ where: { id }, data: dto })
-        : await tx.openDaySession.create({ data: dto as OpenDayWriteDto });
-      await this.audit.record(tx, actor.id, id ? 'UPDATED' : 'CREATED', 'OpenDaySession', row.id, {
-        fields: Object.keys(dto),
-      });
-      return row;
-    });
+          current &&
+          (row.startsAt.getTime() !== current.startsAt.getTime() ||
+            row.location !== current.location)
+        ) {
+          const registrations = await tx.openDayRegistration.findMany({
+            where: {
+              sessionId: row.id,
+              cancelledAt: null,
+              attended: false,
+              user: { isBlocked: false, anonymizedAt: null },
+            },
+            select: { userId: true },
+          });
+          await this.notifications.notify(
+            tx,
+            registrations.map((r) => r.userId),
+            'OpenDayRescheduled',
+            {
+              sessionId: row.id,
+              title: 'День открытых дверей',
+              startsAt: row.startsAt.toISOString(),
+              location: row.location,
+            },
+          );
+        }
+        return row;
+      }),
+    );
   }
   async register(actor: Actor, id: string) {
     return this.prisma.$transaction(async (tx) => {

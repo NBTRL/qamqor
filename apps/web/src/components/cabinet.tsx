@@ -589,6 +589,44 @@ export function MyRegistrations() {
 }
 export const notificationTitle = (type: string) =>
   notificationTypeLabels[type as keyof typeof notificationTypeLabels] ?? type;
+function NotificationDetails({
+  type,
+  payload,
+}: {
+  type: string;
+  payload: Record<string, unknown>;
+}) {
+  const changed = type === 'EventRescheduled' || type === 'OpenDayRescheduled';
+  const scheduleDate = (value: unknown) =>
+    typeof value === 'string' && !Number.isNaN(new Date(value).getTime()) ? date(value) : null;
+  const start = changed ? scheduleDate(payload.startsAt) : null;
+  const end = changed ? scheduleDate(payload.endsAt) : null;
+  const href =
+    type === 'OpenDayRescheduled'
+      ? '/cabinet/registrations'
+      : type === 'EventRescheduled' && typeof payload.eventId === 'string'
+        ? `/events/${encodeURIComponent(payload.eventId)}`
+        : null;
+  return (
+    <>
+      <p>
+        {typeof payload.message === 'string'
+          ? payload.message
+          : typeof payload.title === 'string'
+            ? payload.title
+            : ''}
+      </p>
+      {changed && (
+        <>
+          {start && <p>Начало: {start} (Москва)</p>}
+          {end && <p>Окончание: {end} (Москва)</p>}
+          {typeof payload.location === 'string' && <p>Место: {payload.location}</p>}
+          {href && <Link href={href}>Подробнее</Link>}
+        </>
+      )}
+    </>
+  );
+}
 export function Notifications() {
   const { me } = useAuth();
   const cache = useQueryClient();
@@ -626,13 +664,7 @@ export function Notifications() {
             cell: (row) => (
               <>
                 {notificationTitle(row.type)}
-                <p>
-                  {typeof row.payload['message'] === 'string'
-                    ? row.payload['message']
-                    : typeof row.payload['title'] === 'string'
-                      ? row.payload['title']
-                      : ''}
-                </p>
+                <NotificationDetails type={row.type} payload={row.payload} />
               </>
             ),
           },
