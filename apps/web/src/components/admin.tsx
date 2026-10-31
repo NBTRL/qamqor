@@ -582,6 +582,7 @@ function ApplicationDecision({ id }: { id: string }) {
   );
 }
 export function StatOverrides() {
+  const cache = useQueryClient();
   const query = useQuery({
     queryKey: ['stat-overrides'],
     queryFn: () => result(api.GET('/api/v1/admin/stat-overrides')),
@@ -601,6 +602,13 @@ export function StatOverrides() {
       });
       return result(api.PUT('/api/v1/admin/stat-overrides', { body }));
     },
+    onSuccess: async (data) => {
+      // An older background read must not replace the saved server snapshot.
+      await cache.cancelQueries({ queryKey: ['stat-overrides'], exact: true });
+      cache.setQueryData(['stat-overrides'], data);
+      setValues({});
+      void cache.invalidateQueries({ queryKey: ['admin-dashboard'] });
+    },
   });
   return (
     <>
@@ -611,9 +619,10 @@ export function StatOverrides() {
       {query.data && (
         <form
           className="form"
+          aria-busy={mutation.isPending}
           onSubmit={(event) => {
             event.preventDefault();
-            mutation.mutate();
+            if (!mutation.isPending) mutation.mutate();
           }}
         >
           {STAT_KEYS.map((key) => (
@@ -635,8 +644,12 @@ export function StatOverrides() {
                 type="number"
                 min="0"
                 max="2147483647"
+                disabled={mutation.isPending}
                 value={values[key] ?? query.data.items.find((row) => row.key === key)?.value ?? ''}
-                onChange={(event) => setValues({ ...values, [key]: event.target.value })}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setValues((current) => ({ ...current, [key]: value }));
+                }}
               />
             </Field>
           ))}
