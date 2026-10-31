@@ -42,12 +42,18 @@ function fixture() {
     hold: undefined as Promise<void> | undefined,
     holdRead: undefined as Promise<void> | undefined,
     normalize: (items: Setting[]) => items,
+    notifications: [] as Model<'NotificationResponseDto'>[],
   };
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: Request) => {
       const path = new URL(input.url).pathname;
-      if (path === '/api/v1/me/notifications') return response(page([]));
+      if (path === '/api/v1/me/notifications')
+        return response({
+          ...page([]),
+          items: state.notifications,
+          total: state.notifications.length,
+        });
       expect(path).toBe('/api/v1/me/notification-settings');
       if (input.method === 'GET') {
         state.reads++;
@@ -89,6 +95,65 @@ afterEach(() => {
 });
 
 describe('Notification settings persistence', () => {
+  it.each(['EventRescheduled', 'OpenDayRescheduled'] as const)(
+    'shows %s details, its destination and channel settings',
+    async (type) => {
+      const { state, mount } = fixture();
+      const eventId = '11111111-1111-4111-8111-111111111112';
+      state.notifications.push({
+        id: '11111111-1111-4111-8111-111111111113',
+        type,
+        channel: 'IN_APP',
+        status: 'SENT',
+        attempts: 0,
+        lastError: null,
+        readAt: null,
+        sentAt: '2026-10-31T12:00:00Z',
+        createdAt: '2026-10-31T12:00:00Z',
+        payload: {
+          title: 'Новое расписание',
+          startsAt: '2026-11-01T10:00:00Z',
+          location: 'Новый адрес',
+          ...(type === 'EventRescheduled'
+            ? { eventId, endsAt: '2026-11-01T11:00:00Z' }
+            : { sessionId: eventId }),
+        },
+      });
+      mount();
+      await screen.findByText('Место: Новый адрес');
+      expect(screen.getByText(/Начало:.*13:00 \(Москва\)/)).toBeVisible();
+      if (type === 'EventRescheduled')
+        expect(screen.getByText(/Окончание:.*14:00 \(Москва\)/)).toBeVisible();
+      else expect(screen.queryByText(/Окончание:/)).not.toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Подробнее' })).toHaveAttribute(
+        'href',
+        type === 'EventRescheduled' ? `/events/${eventId}` : '/cabinet/registrations',
+      );
+      expect(checkbox(type)).toBeChecked();
+      expect(checkbox(type, 'e-mail')).toBeChecked();
+    },
+  );
+
+  it('renders a reschedule with missing or malformed details without failing the notification list', async () => {
+    const { state, mount } = fixture();
+    state.notifications.push({
+      id: '11111111-1111-4111-8111-111111111113',
+      type: 'EventRescheduled',
+      channel: 'IN_APP',
+      status: 'SENT',
+      attempts: 0,
+      lastError: null,
+      readAt: null,
+      sentAt: null,
+      createdAt: '2026-10-31T12:00:00Z',
+      payload: { title: 'Сообщение без даты', startsAt: 'invalid', endsAt: {} },
+    });
+    mount();
+    await screen.findByText('Сообщение без даты');
+    expect(screen.queryByText(/Начало:|Окончание:/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Подробнее' })).not.toBeInTheDocument();
+  });
+
   it.each([false, true])(
     'keeps the saved choice on return and a repeated save (stale cache: %s)',
     async (stale) => {
