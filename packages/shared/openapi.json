@@ -2249,6 +2249,16 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "upcoming",
+            "required": false,
+            "in": "query",
+            "description": "Только будущие активные записи, по времени начала (по возрастанию).",
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
           }
         ],
         "responses": {

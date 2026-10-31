@@ -37,6 +37,7 @@ import {
   CuratorRegistrationDto,
   EventQueryDto,
   EventResponseDto,
+  MeRegistrationQueryDto,
   MeRegistrationResponseDto,
   NeedResponseDto,
   NeedQueryDto,
@@ -256,7 +257,7 @@ export class MembershipController {
   }
   @Get('registrations') @ApiPage(MeRegistrationResponseDto) registrations(
     @CurrentUser() user: Actor,
-    @Query() query: PageQueryDto,
+    @Query() query: MeRegistrationQueryDto,
   ) {
     return this.memberships.list(user, query);
   }

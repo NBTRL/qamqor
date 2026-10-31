@@ -59,7 +59,9 @@ export function CabinetHome() {
   const registrations = useQuery({
     queryKey: ['registrations', 'next'],
     queryFn: () =>
-      result(api.GET('/api/v1/me/registrations', { params: { query: { limit: 100 } } })),
+      result(
+        api.GET('/api/v1/me/registrations', { params: { query: { upcoming: true, limit: 6 } } }),
+      ),
   });
   const notifications = useQuery({
     queryKey: ['notifications', 'overview'],
@@ -108,13 +110,7 @@ export function CabinetHome() {
       <h2>Ближайшие записи</h2>
       <ErrorNotice error={registrations.error} />
       {registrations.data?.items
-        .filter(
-          (item) =>
-            Date.parse(item.startsAt) > now &&
-            item.status !== RegistrationStatus.CANCELLED &&
-            !item.cancelledAt,
-        )
-        .slice(0, 6)
+        .filter((item) => Date.parse(item.startsAt) > now)
         .map((item) => (
           <p key={item.id}>
             <Link href="/cabinet/registrations">{item.title}</Link> · {date(item.startsAt)}

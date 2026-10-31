@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   Allow,
   ArrayMaxSize,
@@ -330,6 +330,18 @@ export class TripDetailsDto extends TripResponseDto {
 }
 export class TripPatchBodyDto extends TripPatchDto {
   @ApiProperty({ format: 'uuid' }) @IsUUID() id!: string;
+}
+export class MeRegistrationQueryDto extends PageQueryDto {
+  @ApiPropertyOptional({
+    default: false,
+    description: 'Только будущие активные записи, по времени начала (по возрастанию).',
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === 'true' ? true : value === 'false' ? false : value,
+  )
+  @IsBoolean()
+  upcoming?: boolean = false;
 }
 export class MeRegistrationResponseDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
