@@ -175,6 +175,8 @@ export function RecordForm({
       {Object.entries(properties).map(([key, raw]) => {
         const field = resolve(raw);
         const required = node.required?.includes(key);
+        // PATCH needs the empty string to clear a stored media caption.
+        const keepEmpty = schemaName === 'MediaItemWriteDto' && key === 'caption';
         let values = field.enum;
         if (key === 'type' && schemaName.startsWith('Event'))
           values = values?.filter((value) => value !== EventType.TRIP);
@@ -286,7 +288,7 @@ export function RecordForm({
                         value={String(control.value ?? '')}
                         onChange={(event) =>
                           control.onChange(
-                            event.target.value === '' && !required
+                            event.target.value === '' && !required && !keepEmpty
                               ? field.nullable
                                 ? null
                                 : undefined

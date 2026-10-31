@@ -125,6 +125,58 @@ describe('CMS media upload controls', () => {
     expect(save.mock.calls[0]?.[0]).toMatchObject({ type: 'VIDEO', url: videoUrl });
   });
 
+  it.each(['PHOTO', 'VIDEO'] as const)(
+    'sends an explicit empty caption when clearing a %s caption',
+    async (type) => {
+      const albumId = '11111111-1111-4111-8111-111111111111';
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(
+          async () =>
+            new Response(
+              JSON.stringify({
+                items: [{ id: albumId, title: 'Тестовый альбом' }],
+                total: 1,
+                page: 1,
+                limit: 100,
+              }),
+              { headers: { 'Content-Type': 'application/json' } },
+            ),
+        ),
+      );
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      clients.push(client);
+      const save = vi.fn(async (_body: unknown) => ({ ok: true }));
+      render(
+        <QueryClientProvider client={client}>
+          <RecordForm
+            schemaName="MediaItemWriteDto"
+            initial={{
+              albumId,
+              type,
+              url:
+                type === 'PHOTO'
+                  ? 'https://example.test/photo.png'
+                  : 'https://example.test/video.mp4',
+              caption: 'Прежняя подпись',
+              isPublic: true,
+              sortOrder: 0,
+            }}
+            onSave={save}
+          />
+        </QueryClientProvider>,
+      );
+      await screen.findByRole('option', { name: 'Тестовый альбом' });
+      fireEvent.change(screen.getByLabelText('Подпись'), { target: { value: '' } });
+      fireEvent.submit(screen.getByRole('button', { name: /^Сохранить$/ }).closest('form')!);
+      await waitFor(() => expect(save).toHaveBeenCalledOnce());
+      // Assert the wire payload: an undefined property would disappear from JSON.
+      const body = JSON.parse(JSON.stringify(save.mock.calls[0]![0]));
+      expect(body).toMatchObject({ albumId, type, caption: '', isPublic: true, sortOrder: 0 });
+      expect(body.url).toContain(type === 'PHOTO' ? 'photo.png' : 'video.mp4');
+    },
+  );
+
   it('shows an image upload only for PHOTO and reacts to type changes', async () => {
     vi.stubGlobal(
       'fetch',

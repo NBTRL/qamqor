@@ -2424,6 +2424,7 @@ export interface components {
              * @description Ссылка на фото или видео выбранного типа. Управляемые изображения недопустимы для VIDEO. При смене типа нужна новая ссылка.
              */
             url: string;
+            /** @description Пустая строка удаляет подпись. В PATCH отсутствие поля сохраняет текущую подпись. */
             caption?: string;
             isPublic?: boolean;
             sortOrder?: number;
@@ -2469,6 +2470,7 @@ export interface components {
              * @description Ссылка на фото или видео выбранного типа. Управляемые изображения недопустимы для VIDEO. При смене типа нужна новая ссылка.
              */
             url: string;
+            /** @description Пустая строка удаляет подпись. В PATCH отсутствие поля сохраняет текущую подпись. */
             caption?: string;
             isPublic?: boolean;
             sortOrder?: number;
@@ -2482,6 +2484,7 @@ export interface components {
              * @description Ссылка на фото или видео выбранного типа. Управляемые изображения недопустимы для VIDEO. При смене типа нужна новая ссылка.
              */
             url?: string;
+            /** @description Пустая строка удаляет подпись. В PATCH отсутствие поля сохраняет текущую подпись. */
             caption?: string;
             isPublic?: boolean;
             sortOrder?: number;
