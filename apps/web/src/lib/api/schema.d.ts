@@ -2419,7 +2419,10 @@ export interface components {
             /** Format: uuid */
             albumId: string;
             type: components["schemas"]["MediaType"];
-            /** Format: uri */
+            /**
+             * Format: uri
+             * @description Ссылка на фото или видео выбранного типа. Управляемые изображения недопустимы для VIDEO. При смене типа нужна новая ссылка.
+             */
             url: string;
             caption?: string;
             isPublic?: boolean;
@@ -2461,7 +2464,10 @@ export interface components {
             /** Format: uuid */
             albumId: string;
             type: components["schemas"]["MediaType"];
-            /** Format: uri */
+            /**
+             * Format: uri
+             * @description Ссылка на фото или видео выбранного типа. Управляемые изображения недопустимы для VIDEO. При смене типа нужна новая ссылка.
+             */
             url: string;
             caption?: string;
             isPublic?: boolean;
@@ -2471,7 +2477,10 @@ export interface components {
             /** Format: uuid */
             albumId?: string;
             type?: components["schemas"]["MediaType"];
-            /** Format: uri */
+            /**
+             * Format: uri
+             * @description Ссылка на фото или видео выбранного типа. Управляемые изображения недопустимы для VIDEO. При смене типа нужна новая ссылка.
+             */
             url?: string;
             caption?: string;
             isPublic?: boolean;

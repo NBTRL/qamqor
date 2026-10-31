@@ -341,9 +341,13 @@ test('VIDEO media uses an external URL and offers image upload only for PHOTO', 
   const dialog = page.getByRole('dialog');
   await dialog.getByLabel('Тип', { exact: true }).selectOption('PHOTO');
   await expect(dialog.getByLabel('Загрузить изображение', { exact: true })).toHaveCount(1);
+  await dialog.getByLabel('Ссылка', { exact: true }).fill('https://media.example.test/photo.png');
   await dialog.getByLabel('Тип', { exact: true }).selectOption('VIDEO');
   await expect(dialog.getByLabel('Загрузить изображение', { exact: true })).toHaveCount(0);
+  await expect(dialog.getByLabel('Ссылка', { exact: true })).toHaveValue('');
   await dialog.getByLabel('Альбом', { exact: true }).selectOption(placeId);
+  await dialog.getByRole('button', { name: 'Сохранить', exact: true }).click();
+  expect(saved).toBeUndefined();
   await dialog.getByLabel('Ссылка', { exact: true }).fill('https://media.example.test/video.mp4');
   await dialog.getByRole('button', { name: 'Сохранить', exact: true }).click();
   await expect(dialog).toHaveCount(0);

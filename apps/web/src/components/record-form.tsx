@@ -203,7 +203,13 @@ export function RecordForm({
               <Field
                 label={fieldLabels[key] ?? key}
                 error={fieldState.error?.message}
-                hint={!required ? 'Необязательно' : undefined}
+                hint={
+                  schemaName === 'MediaItemWriteDto' && key === 'url'
+                    ? 'При смене типа укажите ссылку заново.'
+                    : !required
+                      ? 'Необязательно'
+                      : undefined
+                }
               >
                 {key === 'bodyHtml' ? (
                   <Editor
@@ -233,7 +239,19 @@ export function RecordForm({
                 ) : values ? (
                   <select
                     value={String(control.value ?? '')}
-                    onChange={(event) => control.onChange(event.target.value || undefined)}
+                    onChange={(event) => {
+                      const value = event.target.value || undefined;
+                      if (
+                        schemaName === 'MediaItemWriteDto' &&
+                        key === 'type' &&
+                        value !== control.value
+                      )
+                        form.setValue('url', '', {
+                          shouldDirty: true,
+                          shouldValidate: form.formState.isSubmitted,
+                        });
+                      control.onChange(value);
+                    }}
                   >
                     <option value="">Выберите…</option>
                     {values.map((value) => (

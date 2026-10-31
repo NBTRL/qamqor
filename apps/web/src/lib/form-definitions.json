@@ -97,7 +97,12 @@
     "properties": {
       "albumId": { "type": "string", "format": "uuid" },
       "type": { "allOf": [{ "$ref": "#/components/schemas/MediaType" }] },
-      "url": { "type": "string", "maxLength": 2000, "format": "uri" },
+      "url": {
+        "type": "string",
+        "maxLength": 2000,
+        "format": "uri",
+        "description": "Ссылка на фото или видео выбранного типа. Управляемые изображения недопустимы для VIDEO. При смене типа нужна новая ссылка."
+      },
       "caption": { "type": "string", "maxLength": 1000 },
       "isPublic": { "type": "boolean" },
       "sortOrder": { "type": "integer", "minimum": 0, "maximum": 100000 }
