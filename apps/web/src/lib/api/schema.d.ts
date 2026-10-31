@@ -3946,6 +3946,8 @@ export interface operations {
                 page?: number;
                 limit?: number;
                 search?: string;
+                /** @description Только будущие активные записи, по времени начала (по возрастанию). */
+                upcoming?: boolean;
             };
             header?: never;
             path?: never;

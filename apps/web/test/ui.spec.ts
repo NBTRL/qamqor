@@ -148,6 +148,136 @@ for (const role of ['CANDIDATE', 'VOLUNTEER'] as const) {
     }
   });
 }
+test('cabinet upcoming uses six server-ordered active entries beyond the first history page', async ({
+  page,
+}) => {
+  await mockApi(page, 'VOLUNTEER');
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  const at = (days: number) => new Date(Date.now() + days * 86400000).toISOString();
+  const row = (title: string, kind: string, status: string | null, days: number) => ({
+    id: randomUUID(),
+    entityId: randomUUID(),
+    kind,
+    status,
+    title,
+    startsAt: at(days),
+    createdAt: new Date().toISOString(),
+    ...(kind === 'OPEN_DAY' ? { attended: false, cancelledAt: null } : {}),
+  });
+  const upcoming = [
+    row('Ближайшая поездка из старой записи', 'TRIP', 'PENDING', 1),
+    row('Встреча участников', 'EVENT', 'CONFIRMED', 2),
+    row('День открытых дверей', 'OPEN_DAY', null, 3),
+    row('Поездка в листе ожидания', 'TRIP', 'WAITLIST', 4),
+    row('Мастер-класс', 'EVENT', 'CONFIRMED', 5),
+    row('Поездка на следующей неделе', 'TRIP', 'CONFIRMED', 6),
+    row('Более дальняя встреча', 'EVENT', 'CONFIRMED', 7),
+  ].map((item) => ({ ...item, createdAt: '2020-01-01T00:00:00.000Z' }));
+  // These newer registrations occupy the entire first history page. The oldest
+  // registration is the nearest event and can only arrive via the upcoming API.
+  const history = [
+    row('Отклонённая запись', 'TRIP', 'REJECTED', 1),
+    row('Отменённая запись', 'EVENT', 'CANCELLED', 1),
+    ...Array.from({ length: 98 }, (_, index) => ({
+      ...row(`Недавно записались ${index + 1}`, 'EVENT', 'CONFIRMED', 30 + index),
+      createdAt: new Date(Date.now() - index * 1000).toISOString(),
+    })),
+    ...upcoming,
+  ];
+  const queries: { upcoming: string | null; limit: string | null }[] = [];
+  await page.route('**/api/v1/me/registrations**', async (route) => {
+    const query = new URL(route.request().url()).searchParams;
+    queries.push({ upcoming: query.get('upcoming'), limit: query.get('limit') });
+    const items = query.get('upcoming') === 'true' ? upcoming : history;
+    const limit = Number(query.get('limit') ?? 20);
+    await route.fulfill({
+      json: { items: items.slice(0, limit), total: items.length, page: 1, limit },
+    });
+  });
+  await page.goto('/cabinet');
+  await expect(page.getByRole('heading', { name: 'Ближайшие записи', exact: true })).toBeVisible();
+  await expect.poll(() => queries.length).toBe(1);
+  expect(queries).toEqual([{ upcoming: 'true', limit: '6' }]);
+  const links = page.locator('p > a[href="/cabinet/registrations"]');
+  await expect(links).toHaveText(upcoming.slice(0, 6).map((item) => item.title));
+  await expect(page.getByText('Отклонённая запись', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('Отменённая запись', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('Более дальняя встреча', { exact: true })).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test('cabinet upcoming refreshes after cancellation while the full history keeps cancelled records', async ({
+  page,
+}) => {
+  await mockApi(page, 'VOLUNTEER');
+  const documents: string[] = [];
+  page.on('request', (request) => {
+    if (request.isNavigationRequest() && request.frame() === page.mainFrame())
+      documents.push(new URL(request.url()).pathname);
+  });
+  const active = {
+    id: randomUUID(),
+    entityId: randomUUID(),
+    kind: 'EVENT',
+    status: 'CONFIRMED',
+    title: 'Встреча для отмены',
+    startsAt: new Date(Date.now() + 86400000).toISOString(),
+  };
+  const rejected = {
+    ...active,
+    id: randomUUID(),
+    entityId: randomUUID(),
+    title: 'Ранее отклонённая запись',
+    status: 'REJECTED',
+  };
+  let cancelled = false;
+  let upcomingReads = 0;
+  let historyReads = 0;
+  await page.route('**/api/v1/me/registrations**', async (route) => {
+    const query = new URL(route.request().url()).searchParams;
+    const upcoming = query.get('upcoming') === 'true';
+    if (upcoming) upcomingReads++;
+    else historyReads++;
+    const current = { ...active, status: cancelled ? 'CANCELLED' : 'CONFIRMED' };
+    const items = upcoming ? (cancelled ? [] : [current]) : [current, rejected];
+    await route.fulfill({
+      json: { items, total: items.length, page: 1, limit: Number(query.get('limit') ?? 20) },
+    });
+  });
+  await page.route(`**/api/v1/events/${active.entityId}/register`, async (route) => {
+    expect(route.request().method()).toBe('DELETE');
+    cancelled = true;
+    await route.fulfill({ json: { ...active, status: 'CANCELLED' } });
+  });
+  await page.goto('/cabinet');
+  const navigation = page.getByRole('navigation', { name: 'Личный раздел', exact: true });
+  const link = page
+    .locator('p > a[href="/cabinet/registrations"]')
+    .filter({ hasText: active.title });
+  await expect(link).toBeVisible();
+  expect(upcomingReads).toBe(1);
+  await expect(page.getByText(rejected.title, { exact: true })).toHaveCount(0);
+  await navigation.getByRole('link', { name: 'Мои записи', exact: true }).click();
+  const activeRow = page.getByRole('row').filter({ hasText: active.title });
+  await expect(activeRow).toContainText('Подтверждена');
+  await expect(page.getByRole('row').filter({ hasText: rejected.title })).toContainText(
+    'Отклонена',
+  );
+  await activeRow.getByRole('button', { name: 'Отменить запись', exact: true }).click();
+  await expect(activeRow).toContainText('Отменена');
+  await expect(activeRow.getByRole('button', { name: 'Отменить запись', exact: true })).toHaveCount(
+    0,
+  );
+  await navigation.getByRole('link', { name: 'Обзор', exact: true }).click();
+  await expect.poll(() => upcomingReads).toBe(2);
+  await expect(link).toHaveCount(0);
+  await navigation.getByRole('link', { name: 'Мои записи', exact: true }).click();
+  await expect(activeRow).toContainText('Отменена');
+  expect(historyReads).toBeGreaterThanOrEqual(2);
+  expect(documents).toEqual(['/cabinet']);
+});
+
 test('CMS news form sends TipTap HTML and shared status (isolated API mocks)', async ({ page }) => {
   await mockApi(page);
   let saved: Record<string, unknown> | undefined;
