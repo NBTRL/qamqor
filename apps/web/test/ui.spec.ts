@@ -697,11 +697,15 @@ test('saved statistic overrides survive navigation, update the dashboard and cle
   type Override = { key: StatKey; value: number | null };
   const stored: Partial<Record<StatKey, number>> = {};
   const submissions: Override[][] = [];
+  const responses: (() => void)[] = [];
   await mockApi(page);
   await page.route('**/api/v1/admin/stat-overrides', async (route) => {
     if (route.request().method() === 'PUT') {
       const body = route.request().postDataJSON() as { items: Override[] };
       submissions.push(body.items.map((item) => ({ ...item })));
+      // A recorded request has not settled the mutation. Keep the response held
+      // until the browser has observed pending UI, then await a fresh success.
+      await new Promise<void>((resolve) => responses.push(resolve));
       for (const item of body.items) {
         if (item.value === null) delete stored[item.key];
         else stored[item.key] = item.value;
@@ -732,21 +736,31 @@ test('saved statistic overrides survive navigation, update the dashboard and cle
   await expect(places).toHaveValue('');
   await places.fill('42');
   const save = page.getByRole('button', { name: 'Сохранить счетчики', exact: true });
-  await save.click();
-  await expect(page.getByText('Счетчики сохранены.', { exact: true })).toBeVisible();
+  const saved = page.getByText('Счетчики сохранены.', { exact: true });
+  const form = page.locator('form[aria-busy]');
+  const saveAndWait = async (count: number) => {
+    await save.click();
+    await expect.poll(() => submissions.length).toBe(count);
+    await expect(form).toHaveAttribute('aria-busy', 'true');
+    await expect(save).toBeDisabled();
+    await expect(places).toBeDisabled();
+    await expect(saved).toHaveCount(0);
+    responses[count - 1]!();
+    await expect(saved).toBeVisible();
+    await expect(form).toHaveAttribute('aria-busy', 'false');
+    await expect(save).toBeEnabled();
+    await expect(places).toBeEnabled();
+  };
+  await saveAndWait(1);
   expect(submissions[0]?.find((item) => item.key === 'places')?.value).toBe(42);
   await navigation.getByRole('link', { name: 'Дашборд', exact: true }).click();
   await expect(dashboardPlaces).toHaveText('42');
   await navigation.getByRole('link', { name: 'Счетчики', exact: true }).click();
   await expect(places).toHaveValue('42');
-  await save.click();
-  await expect.poll(() => submissions.length).toBe(2);
-  await expect(save).toBeEnabled();
+  await saveAndWait(2);
   expect(submissions[1]?.find((item) => item.key === 'places')?.value).toBe(42);
   await places.fill('');
-  await save.click();
-  await expect.poll(() => submissions.length).toBe(3);
-  await expect(save).toBeEnabled();
+  await saveAndWait(3);
   expect(submissions[2]?.find((item) => item.key === 'places')?.value).toBeNull();
   await navigation.getByRole('link', { name: 'Дашборд', exact: true }).click();
   await expect(dashboardPlaces).toHaveText('4');
