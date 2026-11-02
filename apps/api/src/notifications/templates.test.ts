@@ -83,6 +83,22 @@ describe('Notification destinations', () => {
     );
     expect(message.subject).toBeTruthy();
   });
+  it('includes the trip meeting point and both dates without exposing it in unrelated notices', () => {
+    const payload = {
+      tripId: 'synthetic-trip',
+      title: 'Поездка',
+      startsAt: '2026-11-01T10:00:00Z',
+      endsAt: '2026-11-01T11:00:00Z',
+      meetingPoint: 'У северного входа',
+    };
+    const message = notificationMessage('TripRescheduled', payload, origin);
+    expect(message.subject).toBe('Изменились время или место сбора поездки');
+    expect(message.text).toContain('Место сбора: У северного входа');
+    expect(message.text).toContain('13:00 (Москва)');
+    expect(message.text).toMatch(/Окончание:.*14:00/);
+    expect(message.text).toContain(`${origin}/trips/synthetic-trip`);
+    expect(notificationMessage('EventRegistered', payload, origin).text).not.toContain('северного');
+  });
 });
 
 it('explains event access cancellation without implying that the event itself was cancelled', () => {

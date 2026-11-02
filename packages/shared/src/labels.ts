@@ -118,7 +118,7 @@ export const notificationTypeLabels: Record<import('./constants.js').Notificatio
   RegistrationPromotedFromWaitlist: 'Место освободилось',
   RegistrationCancelled: 'Запись отменена',
   TripCancelled: 'Поездка отменена',
-  TripRescheduled: 'Поездка перенесена',
+  TripRescheduled: 'Изменились время или место сбора поездки',
   TripReminder24h: 'Поездка через сутки',
   TripReminder3h: 'Поездка через 3 часа',
   NewRegistrationForCurator: 'Новая заявка на поездку',

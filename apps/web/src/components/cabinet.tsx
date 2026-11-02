@@ -596,7 +596,7 @@ function NotificationDetails({
   type: string;
   payload: Record<string, unknown>;
 }) {
-  const changed = type === 'EventRescheduled' || type === 'OpenDayRescheduled';
+  const changed = ['TripRescheduled', 'EventRescheduled', 'OpenDayRescheduled'].includes(type);
   const scheduleDate = (value: unknown) =>
     typeof value === 'string' && !Number.isNaN(new Date(value).getTime()) ? date(value) : null;
   const start = changed ? scheduleDate(payload.startsAt) : null;
@@ -606,7 +606,9 @@ function NotificationDetails({
       ? '/cabinet/registrations'
       : type === 'EventRescheduled' && typeof payload.eventId === 'string'
         ? `/events/${encodeURIComponent(payload.eventId)}`
-        : null;
+        : type === 'TripRescheduled' && typeof payload.tripId === 'string'
+          ? `/trips/${encodeURIComponent(payload.tripId)}`
+          : null;
   return (
     <>
       <p>
@@ -621,6 +623,9 @@ function NotificationDetails({
           {start && <p>Начало: {start} (Москва)</p>}
           {end && <p>Окончание: {end} (Москва)</p>}
           {typeof payload.location === 'string' && <p>Место: {payload.location}</p>}
+          {type === 'TripRescheduled' && typeof payload.meetingPoint === 'string' && (
+            <p>Место сбора: {payload.meetingPoint}</p>
+          )}
           {href && <Link href={href}>Подробнее</Link>}
         </>
       )}

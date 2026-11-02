@@ -27,6 +27,7 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
   private emailQueue?: Queue<NotificationJob>;
   private timer?: ReturnType<typeof setInterval>;
   private dispatching?: Promise<void>;
+  private dispatchCursor?: { createdAt: Date; id: string };
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
@@ -112,8 +113,19 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
   }
   async dispatch(): Promise<void> {
     const rows = await this.prisma.notification.findMany({
-      where: { status: 'QUEUED', channel: { in: ['TELEGRAM', 'EMAIL'] } },
-      orderBy: { createdAt: 'asc' },
+      where: {
+        status: 'QUEUED',
+        channel: { in: ['TELEGRAM', 'EMAIL'] },
+        ...(this.dispatchCursor
+          ? {
+              OR: [
+                { createdAt: { gt: this.dispatchCursor.createdAt } },
+                { createdAt: this.dispatchCursor.createdAt, id: { gt: this.dispatchCursor.id } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       take: 200,
     });
     for (const row of rows) {
@@ -121,13 +133,19 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
       if (!queue) continue;
       const id = `notification-${row.id}`;
       const existing = await queue.getJob(id);
-      if (existing && (await existing.getState()) === 'failed') await existing.remove();
-      await queue.add(
-        'send',
-        { id: row.id },
-        { jobId: id, ...(row.channel === 'TELEGRAM' ? { backoff: { type: 'telegram' } } : {}) },
-      );
+      const state = await existing?.getState();
+      if (existing && (state === 'failed' || state === 'completed')) await existing.remove();
+      if (!existing || state === 'failed' || state === 'completed')
+        await queue.add(
+          'send',
+          { id: row.id },
+          { jobId: id, ...(row.channel === 'TELEGRAM' ? { backoff: { type: 'telegram' } } : {}) },
+        );
+      this.dispatchCursor = { createdAt: row.createdAt, id: row.id };
     }
+    // Rotate through the whole outbox, including jobs delayed by retry_after.
+    // Restart each sweep to recover missing Redis jobs and late/backdated commits.
+    if (rows.length < 200) this.dispatchCursor = undefined;
   }
   private async finish(
     row: Notification,
@@ -251,9 +269,28 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
     tx: Tx,
     row: Notification & { user: { role: string } },
   ): Promise<boolean> {
-    if (row.type !== 'EventRescheduled' && row.type !== 'OpenDayRescheduled') return true;
+    if (!['TripRescheduled', 'EventRescheduled', 'OpenDayRescheduled'].includes(row.type))
+      return true;
     const data = row.payload;
     if (!data || typeof data !== 'object' || Array.isArray(data)) return false;
+    if (row.type === 'TripRescheduled') {
+      if (typeof data.tripId !== 'string' || !isUUID(data.tripId)) return false;
+      const registration = await tx.tripRegistration.findUnique({
+        where: { tripId_userId: { tripId: data.tripId, userId: row.userId } },
+        include: { trip: true },
+      });
+      return Boolean(
+        registration &&
+        ['VOLUNTEER', 'ADMIN'].includes(row.user.role) &&
+        ['PENDING', 'CONFIRMED', 'WAITLIST'].includes(registration.status) &&
+        ['OPEN', 'CLOSED'].includes(registration.trip.status) &&
+        registration.trip.startsAt > new Date() &&
+        registration.trip.startsAt.toISOString() === data.startsAt &&
+        // Previously queued messages only carried startsAt.
+        (data.endsAt === undefined || registration.trip.endsAt.toISOString() === data.endsAt) &&
+        (data.meetingPoint === undefined || registration.trip.meetingPoint === data.meetingPoint),
+      );
+    }
     if (row.type === 'EventRescheduled') {
       if (typeof data.eventId !== 'string' || !isUUID(data.eventId)) return false;
       const registration = await tx.eventRegistration.findUnique({

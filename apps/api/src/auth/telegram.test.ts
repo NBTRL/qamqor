@@ -21,7 +21,7 @@ function telegram(mode: 'polling' | 'webhook' = 'polling', username = 'club_test
   };
   const service = new TelegramService(
     auth as never,
-    {} as never,
+    { user: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) } } as never,
     {} as never,
     new CryptoService(),
     { offline: true, workers: false, telegram: false },
@@ -71,6 +71,7 @@ describe('Протокол Telegram', () => {
       payload: {
         url: 'https://club.example.test/api/v1/telegram/webhook',
         secret_token: 'synthetic_webhook_secret',
+        allowed_updates: ['message', 'callback_query', 'my_chat_member'],
       },
     });
     expect(() => service.verifyWebhook(undefined)).toThrow();

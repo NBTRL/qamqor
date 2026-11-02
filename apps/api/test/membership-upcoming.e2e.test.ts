@@ -9,6 +9,7 @@ import { CONSENT_VERSION, RegistrationStatus, TripStatus } from '@club/shared';
 import { AppModule } from '../dist/app.module.js';
 import { configureApp } from '../dist/openapi.js';
 import { PrismaService } from '../dist/prisma/prisma.service.js';
+import { telegramFixture } from './helpers/telegram.js';
 import { RedisThrottlerStorage } from '../dist/common/throttle.service.js';
 
 type Entry = {
@@ -364,6 +365,21 @@ describe('Upcoming memberships', () => {
       expect(entry).not.toHaveProperty('searchTitle');
       expect(entry).not.toHaveProperty('tripStatus');
     }
+  });
+
+  it('renders the same nearest ten and ties in Telegram as the cabinet, across all kinds', async () => {
+    const member = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    const bot = telegramFixture(prisma);
+    await bot.handle(bot.message(Number(member.telegramId), '/status'));
+    const response = await get({ upcoming: true, limit: 10 });
+    expect(response.status).toBe(200);
+    const titles = bot.messages[0]
+      .split('\n')
+      .slice(1)
+      .map((line) => line.split(' — ')[1]);
+    expect(titles).toEqual(response.body.items.map((item: Registration) => item.title));
+    expect(titles).toEqual(upcoming.slice(0, 10).map((item) => item.title));
+    expect(titles).toHaveLength(10);
   });
 
   it('returns only active future registrations with the same total on every page', async () => {
