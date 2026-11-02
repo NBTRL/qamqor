@@ -160,21 +160,20 @@ describe('Open-day attendance API invariants', () => {
   );
 
   it.each(['POST', 'PATCH'] as const)(
-    '%s can mark early attendance for an active booking in a full session',
+    '%s rejects early attendance for an active booking in a full session',
     async (mode) => {
       const f = await fixture(future(), null);
       const result = await mark(mode, f.registration);
-      expect(result.status).toBe(200);
-      expect(result.body).toMatchObject({
-        id: f.registration.id,
-        attended: true,
-        cancelledAt: null,
-      });
+      expect(result.status).toBe(400);
+      expect(result.body.code).toBe('VALIDATION_ERROR');
+      expect(
+        await prisma.openDayRegistration.findUniqueOrThrow({ where: { id: f.registration.id } }),
+      ).toMatchObject({ attended: false, cancelledAt: null });
       expect(
         await prisma.auditLog.count({
           where: { entityId: f.registration.id, action: 'ATTENDANCE_MARKED', actorId: adminId },
         }),
-      ).toBe(1);
+      ).toBe(0);
     },
   );
 
@@ -213,12 +212,13 @@ describe('Open-day attendance API invariants', () => {
     expect(result.body).toMatchObject({ userId: blocked.id, attended: true, cancelledAt: null });
   });
 
-  it('serializes competing administrative attendance for the last future place', async () => {
+  it('serializes competing administrative bookings for the last future place', async () => {
     const f = await fixture();
+    await prisma.openDayRegistration.delete({ where: { id: f.registration.id } });
     const other = await createUser();
     const results = await Promise.all([
-      mark('POST', f.registration),
-      mark('POST', { sessionId: f.day.id, userId: other.id }),
+      mark('POST', f.registration, false),
+      mark('POST', { sessionId: f.day.id, userId: other.id }, false),
     ]);
     expect(results.map((result) => result.status).sort()).toEqual([200, 409]);
     expect(results.find((result) => result.status === 409)?.body.code).toBe('OPEN_DAY_FULL');
@@ -233,10 +233,276 @@ describe('Open-day attendance API invariants', () => {
       mark('POST', f.registration),
       me.anonymize(f.user, adminId),
     ]);
-    expect([200, 403]).toContain(result.status);
+    expect([400, 403]).toContain(result.status);
     expect(
       (await prisma.openDayRegistration.findUniqueOrThrow({ where: { id: f.registration.id } }))
         .cancelledAt,
     ).not.toBeNull();
   });
+});
+
+const questionnaire = {
+  motivation: 'Хочу регулярно помогать и делиться полезными знаниями.',
+  volunteeringExperience: 'Многолетний опыт волонтерства.',
+  helpAreas: ['EDUCATION'],
+  availableWeekdays: ['SATURDAY'],
+  referralSource: 'Друзья',
+  rulesAccepted: true,
+};
+async function tokenFor(userId: string) {
+  const crypto = app.get(CryptoService);
+  const session = await prisma.refreshToken.create({
+    data: {
+      userId,
+      familyId: randomUUID(),
+      tokenHash: crypto.hash(crypto.random()),
+      deviceHash: crypto.hash(agent),
+      expiresAt: future(),
+    },
+  });
+  return app
+    .get(JwtService)
+    .signAsync({ sub: userId, sessionId: session.id, scope: 'access' }, { expiresIn: 900 });
+}
+function apiCall(method: 'get' | 'post' | 'patch', path: string, token = access) {
+  return request(app.getHttpServer())
+    [method](`/api/v1${path}`)
+    .set('Authorization', `Bearer ${token}`)
+    .set('User-Agent', agent)
+    .set('Origin', process.env.WEB_URL ?? 'http://localhost:3000');
+}
+async function applicationFixture(
+  status: 'NEW' | 'QUESTIONNAIRE_DONE' | 'REJECTED' = 'QUESTIONNAIRE_DONE',
+) {
+  const user = await createUser();
+  const application = await prisma.candidateApplication.create({
+    data: {
+      userId: user.id,
+      status,
+      ...(status === 'QUESTIONNAIRE_DONE' ? { questionnaire } : {}),
+    },
+  });
+  return { user, application };
+}
+function decide(mode: 'POST' | 'PATCH', id: string, body: object, token = access) {
+  return apiCall(
+    mode === 'POST' ? 'post' : 'patch',
+    `/admin/applications/${id}${mode === 'POST' ? '/status' : ''}`,
+    token,
+  ).send(body);
+}
+
+describe('Admission requires a real open day, with explicit administrator exceptions', () => {
+  it.each(['POST', 'PATCH'] as const)(
+    '%s rejects missing, future and cancelled attendance in the ordinary path',
+    async (mode) => {
+      const f = await applicationFixture();
+      const token = await tokenFor(f.user.id);
+      for (const kind of ['missing', 'future', 'cancelled']) {
+        if (kind !== 'missing') {
+          await prisma.openDayRegistration.deleteMany({ where: { userId: f.user.id } });
+          const day = await prisma.openDaySession.create({
+            data: { startsAt: kind === 'future' ? future() : past(), location: kind, capacity: 10 },
+          });
+          await prisma.openDayRegistration.create({
+            data: {
+              userId: f.user.id,
+              sessionId: day.id,
+              attended: true,
+              cancelledAt: kind === 'cancelled' ? new Date() : null,
+            },
+          });
+        }
+        for (const status of ['INTERVIEW', 'ACCEPTED']) {
+          const result = await decide(mode, f.application.id, { status });
+          expect(result.body.code).toBe('OPEN_DAY_REQUIRED');
+        }
+        const mine = await apiCall('get', '/me/application', token);
+        const detail = await apiCall('get', `/admin/applications/${f.application.id}`);
+        const list = await apiCall('get', '/admin/applications?limit=100');
+        expect(mine.body.hasOpenDayAttended).toBe(false);
+        expect(detail.body.hasOpenDayAttended).toBe(false);
+        expect(
+          list.body.items.find((row: { id: string }) => row.id === f.application.id)
+            .hasOpenDayAttended,
+        ).toBe(false);
+      }
+      expect((await prisma.user.findUniqueOrThrow({ where: { id: f.user.id } })).role).toBe(
+        'CANDIDATE',
+      );
+      expect(
+        await prisma.applicationHistory.count({ where: { applicationId: f.application.id } }),
+      ).toBe(0);
+    },
+  );
+
+  it.each(['POST', 'PATCH'] as const)(
+    '%s accepts a complete candidate only after an explicit decision',
+    async (mode) => {
+      const f = await applicationFixture();
+      const day = await prisma.openDaySession.create({
+        data: { startsAt: past(), location: 'Completed meeting', capacity: 10 },
+      });
+      expect((await mark('POST', { sessionId: day.id, userId: f.user.id })).status).toBe(200);
+      expect((await prisma.user.findUniqueOrThrow({ where: { id: f.user.id } })).role).toBe(
+        'CANDIDATE',
+      );
+      expect((await decide(mode, f.application.id, { status: 'ACCEPTED' })).status).toBe(200);
+      expect((await prisma.user.findUniqueOrThrow({ where: { id: f.user.id } })).role).toBe(
+        'VOLUNTEER',
+      );
+    },
+  );
+
+  it.each(['POST', 'PATCH'] as const)(
+    '%s permits an audited exception from NEW, QUESTIONNAIRE_DONE and REJECTED without fabricating attendance',
+    async (mode) => {
+      for (const status of ['NEW', 'QUESTIONNAIRE_DONE', 'REJECTED'] as const) {
+        const f = await applicationFixture(status);
+        if (status === 'REJECTED')
+          await prisma.applicationHistory.create({
+            data: {
+              applicationId: f.application.id,
+              actorId: adminId,
+              fromStatus: 'NEW',
+              toStatus: 'REJECTED',
+              comment: 'Предыдущее решение',
+            },
+          });
+        const result = await decide(mode, f.application.id, {
+          status: 'ACCEPTED',
+          adminOverride: true,
+          comment: 'Личное решение основателя',
+        });
+        expect(result.status).toBe(200);
+        expect(result.body).toMatchObject({ status: 'ACCEPTED', hasOpenDayAttended: false });
+        expect(result.body.history.at(-1).comment).toContain('в порядке исключения');
+        if (status === 'REJECTED')
+          expect(result.body.history[0].comment).toBe('Предыдущее решение');
+        expect((await prisma.user.findUniqueOrThrow({ where: { id: f.user.id } })).role).toBe(
+          'VOLUNTEER',
+        );
+        expect(await prisma.openDayRegistration.count({ where: { userId: f.user.id } })).toBe(0);
+        expect(
+          await prisma.auditLog.findFirst({
+            where: { entityId: f.application.id, action: 'APPLICATION_ACCEPTED_BY_ADMIN' },
+          }),
+        ).toMatchObject({
+          actorId: adminId,
+          diff: {
+            from: status,
+            to: 'ACCEPTED',
+            reason: 'Личное решение основателя',
+            hasOpenDayAttended: false,
+          },
+        });
+        expect(
+          await prisma.notification.count({
+            where: { userId: f.user.id, type: 'ApplicationStatusChanged' },
+          }),
+        ).toBeGreaterThan(0);
+        expect(
+          (
+            await decide(mode, f.application.id, {
+              status: 'ACCEPTED',
+              adminOverride: true,
+              comment: 'Повтор',
+            })
+          ).body.code,
+        ).toBe('INVALID_TRANSITION');
+      }
+    },
+  );
+
+  it('validates explicit exceptions and preserves blocked accounts', async () => {
+    const f = await applicationFixture('NEW');
+    for (const body of [
+      { status: 'ACCEPTED', adminOverride: true },
+      { status: 'ACCEPTED', adminOverride: true, comment: '   ' },
+      { status: 'INTERVIEW', adminOverride: true, comment: 'Причина' },
+      { status: 'ACCEPTED', adminOverride: 'true', comment: 'Причина' },
+      { status: 'ACCEPTED', adminOverride: null, comment: 'Причина' },
+    ])
+      expect((await decide('POST', f.application.id, body)).status).toBe(400);
+    expect(
+      (await decide('POST', f.application.id, { status: 'ACCEPTED', adminOverride: false })).body
+        .code,
+    ).toBe('OPEN_DAY_REQUIRED');
+    await prisma.user.update({ where: { id: f.user.id }, data: { isBlocked: true } });
+    expect(
+      (
+        await decide('POST', f.application.id, {
+          status: 'ACCEPTED',
+          adminOverride: true,
+          comment: 'Причина',
+        })
+      ).body.code,
+    ).toBe('ACCOUNT_BLOCKED');
+    expect(
+      await prisma.applicationHistory.count({ where: { applicationId: f.application.id } }),
+    ).toBe(0);
+  });
+
+  it('keeps direct administrator role assignment without completing application stages', async () => {
+    const f = await applicationFixture('NEW');
+    const result = await apiCall('patch', `/admin/users/${f.user.id}`).send({ role: 'VOLUNTEER' });
+    expect(result.status).toBe(200);
+    expect(result.body.role).toBe('VOLUNTEER');
+    expect(
+      (await prisma.candidateApplication.findUniqueOrThrow({ where: { id: f.application.id } }))
+        .status,
+    ).toBe('NEW');
+    expect(
+      await prisma.auditLog.findFirst({ where: { entityId: f.user.id, action: 'ROLE_CHANGED' } }),
+    ).toMatchObject({ diff: { admissionMode: 'ADMIN_DIRECT' } });
+    const created = await apiCall('post', '/admin/users').send({
+      telegramId: BigInt('0x' + randomUUID().replaceAll('-', '').slice(0, 14)).toString(),
+      fullName: 'Прямое назначение',
+      role: 'VOLUNTEER',
+    });
+    expect(created.status).toBe(201);
+    expect(created.body.role).toBe('VOLUNTEER');
+  });
+
+  it.each(['CANDIDATE', 'VOLUNTEER'] as const)(
+    'does not grant %s administrator admission powers',
+    async (role) => {
+      const f = await applicationFixture();
+      const actor = await createUser();
+      await prisma.user.update({ where: { id: actor.id }, data: { role } });
+      if (role === 'VOLUNTEER') {
+        const region = await prisma.region.create({
+          data: { name: randomUUID(), slug: randomUUID() },
+        });
+        const place = await prisma.place.create({
+          data: {
+            regionId: region.id,
+            slug: randomUUID(),
+            name: 'Curator institution',
+            type: 'ORPHANAGE',
+            city: 'Город',
+            address: 'Адрес',
+            description: 'Описание',
+          },
+        });
+        await prisma.placeCurator.create({ data: { userId: actor.id, placeId: place.id } });
+      }
+      const token = await tokenFor(actor.id);
+      for (const mode of ['POST', 'PATCH'] as const)
+        expect(
+          (
+            await decide(
+              mode,
+              f.application.id,
+              { status: 'ACCEPTED', adminOverride: true, comment: 'Попытка' },
+              token,
+            )
+          ).status,
+        ).toBe(403);
+      expect(
+        (await apiCall('patch', `/admin/users/${f.user.id}`, token).send({ role: 'VOLUNTEER' }))
+          .status,
+      ).toBe(403);
+    },
+  );
 });

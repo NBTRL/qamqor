@@ -403,6 +403,11 @@ describe('Поездки, анкета, приватность и уведомл
       .set('Authorization', `Bearer ${candidate.access}`)
       .send({});
     expect(attendance.status).toBe(201);
+    // Advance the session fixture to simulate the actual meeting before marking attendance.
+    await prisma.openDaySession.update({
+      where: { id: day.body.id },
+      data: { startsAt: new Date(Date.now() - 1000) },
+    });
     expect(
       (
         await req('patch', `/admin/open-day-registrations/${attendance.body.id}`)
