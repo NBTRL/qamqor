@@ -28,7 +28,14 @@ export class MembershipService {
         }
         if (row.kind === 'EVENT') {
           const event = await this.prisma.event.findUniqueOrThrow({ where: { id: row.entityId } });
-          return { ...row, title: event.title, startsAt: event.startsAt, location: event.location };
+          return {
+            ...row,
+            title: event.title,
+            startsAt: event.startsAt,
+            location: event.location,
+            entityCancelledAt: event.cancelledAt,
+            cancelReason: event.cancelReason,
+          };
         }
         const day = await this.prisma.openDayRegistration.findUniqueOrThrow({
           where: { id: row.id },
@@ -39,6 +46,8 @@ export class MembershipService {
           title: 'День открытых дверей',
           startsAt: day.session.startsAt,
           location: day.session.location,
+          entityCancelledAt: day.session.cancelledAt,
+          cancelReason: day.session.cancelReason,
           attended: day.attended,
           cancelledAt: day.cancelledAt,
         };

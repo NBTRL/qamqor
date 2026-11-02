@@ -337,6 +337,14 @@ export class ApplicationResponseDto {
   history!: object[];
   @ApiProperty() hasOpenDayAttended!: boolean;
 }
+export class MeetingCancelDto {
+  @ApiProperty({ minLength: 1, maxLength: 2000 })
+  @Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value))
+  @IsString()
+  @MinLength(1)
+  @MaxLength(2000)
+  cancelReason!: string;
+}
 export class OpenDayWriteDto {
   @ApiProperty({ format: 'date-time' })
   @IsDateTime()
@@ -364,6 +372,8 @@ export class OpenDayWriteDto {
 }
 export class OpenDayPatchDto extends PartialType(OpenDayWriteDto, { skipNullProperties: false }) {}
 export class OpenDayResponseDto extends OpenDayWriteDto {
+  @ApiProperty({ nullable: true, type: String, format: 'date-time' }) cancelledAt!: Date | null;
+  @ApiProperty({ nullable: true, type: String }) cancelReason!: string | null;
   @ApiProperty({ format: 'uuid' }) id!: string;
 }
 export class OpenDayAttendanceDto {
@@ -413,6 +423,8 @@ export class EventWriteDto {
 }
 export class EventPatchDto extends PartialType(EventWriteDto, { skipNullProperties: false }) {}
 export class EventResponseDto extends EventWriteDto {
+  @ApiProperty({ nullable: true, type: String, format: 'date-time' }) cancelledAt!: Date | null;
+  @ApiProperty({ nullable: true, type: String }) cancelReason!: string | null;
   @ApiProperty({ format: 'uuid' }) id!: string;
 }
 export class EventQueryDto extends PageQueryDto {
@@ -462,6 +474,9 @@ export class MeRegistrationQueryDto extends PageQueryDto {
   upcoming?: boolean = false;
 }
 export class MeRegistrationResponseDto {
+  @ApiPropertyOptional({ nullable: true, type: String, format: 'date-time' })
+  entityCancelledAt?: Date | null;
+  @ApiPropertyOptional({ nullable: true, type: String }) cancelReason?: string | null;
   @ApiProperty({ format: 'uuid' }) id!: string;
   @ApiProperty({ enum: ['TRIP', 'EVENT', 'OPEN_DAY'] }) kind!: string;
   @ApiProperty({ format: 'uuid' }) entityId!: string;

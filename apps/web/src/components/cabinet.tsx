@@ -540,6 +540,9 @@ export function MyRegistrations() {
             cell: (row) => (
               <>
                 {row.title}
+                {row.entityCancelledAt && (
+                  <p className="notice">Встреча отменена. Причина: {row.cancelReason}</p>
+                )}
                 <p>
                   {row.kind === 'TRIP'
                     ? 'Поездка'
@@ -565,6 +568,7 @@ export function MyRegistrations() {
           {
             title: 'Действия',
             cell: (row) =>
+              !row.entityCancelledAt &&
               !row.cancelledAt &&
               Date.parse(row.startsAt) > now &&
               (!row.status ||
@@ -602,9 +606,10 @@ function NotificationDetails({
   const start = changed ? scheduleDate(payload.startsAt) : null;
   const end = changed ? scheduleDate(payload.endsAt) : null;
   const href =
-    type === 'OpenDayRescheduled'
+    type === 'OpenDayRescheduled' || type === 'OpenDayCancelled'
       ? '/cabinet/registrations'
-      : type === 'EventRescheduled' && typeof payload.eventId === 'string'
+      : (type === 'EventRescheduled' || type === 'EventSessionCancelled') &&
+          typeof payload.eventId === 'string'
         ? `/events/${encodeURIComponent(payload.eventId)}`
         : type === 'TripRescheduled' && typeof payload.tripId === 'string'
           ? `/trips/${encodeURIComponent(payload.tripId)}`
@@ -618,6 +623,7 @@ function NotificationDetails({
             ? payload.title
             : ''}
       </p>
+      {!changed && href && <Link href={href}>Подробнее</Link>}
       {changed && (
         <>
           {start && <p>Начало: {start} (Москва)</p>}

@@ -17,12 +17,12 @@ export async function membershipEntries(
       WHERE r."userId"=${userId}::uuid
       UNION ALL
       SELECT r."id", r."eventId", 'EVENT', r."status"::text, r."createdAt", e."title", e."startsAt",
-        r."status"::text IN ('PENDING', 'CONFIRMED', 'WAITLIST')
+        (e."cancelledAt" IS NULL AND r."status"::text IN ('PENDING', 'CONFIRMED', 'WAITLIST'))
       FROM "event_registrations" r JOIN "events" e ON e."id"=r."eventId"
       WHERE r."userId"=${userId}::uuid
       UNION ALL
       SELECT r."id", r."sessionId", 'OPEN_DAY', NULL::text, r."createdAt", 'День открытых дверей', d."startsAt",
-        r."cancelledAt" IS NULL AND NOT r.attended
+        d."cancelledAt" IS NULL AND r."cancelledAt" IS NULL AND NOT r.attended
       FROM "open_day_registrations" r JOIN "open_day_sessions" d ON d."id"=r."sessionId"
       WHERE r."userId"=${userId}::uuid`;
   const filtered = Prisma.sql`FROM (${entries}) entries

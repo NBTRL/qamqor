@@ -80,6 +80,12 @@ export class AdminService {
   }
   async eventDelete(actor: Actor, id: string) {
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "events" WHERE "id"=${id}::uuid FOR UPDATE`;
+      const meeting = await tx.event.findUniqueOrThrow({ where: { id } });
+      if (meeting.cancelledAt)
+        throw new ApiException(ErrorCode.CONFLICT, {
+          reason: 'Отмененная встреча сохраняется в истории и не может быть удалена.',
+        });
       if (await tx.eventRegistration.count({ where: { eventId: id } }))
         throw new ApiException(ErrorCode.CONFLICT, {
           reason: 'Мероприятие с историей участников нельзя удалить.',
@@ -107,6 +113,12 @@ export class AdminService {
   }
   async dayDelete(actor: Actor, id: string) {
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "open_day_sessions" WHERE "id"=${id}::uuid FOR UPDATE`;
+      const meeting = await tx.openDaySession.findUniqueOrThrow({ where: { id } });
+      if (meeting.cancelledAt)
+        throw new ApiException(ErrorCode.CONFLICT, {
+          reason: 'Отмененная встреча сохраняется в истории и не может быть удалена.',
+        });
       if (await tx.openDayRegistration.count({ where: { sessionId: id } }))
         throw new ApiException(ErrorCode.CONFLICT, {
           reason: 'Сессию с историей посещений нельзя удалить.',

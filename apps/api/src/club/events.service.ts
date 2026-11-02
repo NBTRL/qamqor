@@ -21,6 +21,15 @@ import type {
   OpenDayWriteDto,
 } from './club.dto.js';
 
+function meetingReason(value: string): string {
+  const reason = typeof value === 'string' ? value.trim() : '';
+  if (!reason || reason.length > 2000)
+    throw new ApiException(ErrorCode.VALIDATION_ERROR, {
+      reason: 'Укажите причину отмены длиной до 2000 символов.',
+    });
+  return reason;
+}
+
 @Injectable()
 export class EventsService {
   constructor(
@@ -28,8 +37,9 @@ export class EventsService {
     private readonly audit: AuditService,
     private readonly notifications: NotificationService,
   ) {}
-  async list(query: EventQueryDto) {
+  async list(query: EventQueryDto, admin = false) {
     const where: Prisma.EventWhereInput = {
+      ...(admin ? {} : { cancelledAt: null }),
       type: query.type,
       ...(query.search ? { title: { contains: query.search, mode: 'insensitive' } } : {}),
     };
@@ -89,6 +99,7 @@ export class EventsService {
         });
         if (
           current &&
+          !row.cancelledAt &&
           (row.startsAt.getTime() !== current.startsAt.getTime() ||
             row.endsAt.getTime() !== current.endsAt.getTime() ||
             row.location !== current.location)
@@ -124,7 +135,7 @@ export class EventsService {
   }
   /** The caller holds the Event lock; repeat saves also reconcile legacy invalid bookings. */
   private async cancelCandidateRegistrations(tx: Tx, actorId: string, event: Event) {
-    if (!event.volunteersOnly || event.startsAt <= new Date()) return;
+    if (event.cancelledAt || !event.volunteersOnly || event.startsAt <= new Date()) return;
     const registrations = await tx.eventRegistration.findMany({
       where: {
         eventId: event.id,
@@ -162,12 +173,73 @@ export class EventsService {
       },
     );
   }
+  async cancelMeeting(actor: Actor, id: string, input: string) {
+    const cancelReason = meetingReason(input);
+    return retryTransaction(() =>
+      this.prisma.$transaction(async (tx) => {
+        const user = await lockActiveUser(tx, actor.id);
+        if (user.role !== 'ADMIN') throw new ApiException(ErrorCode.FORBIDDEN);
+        await tx.$queryRaw`SELECT "id" FROM "events" WHERE "id"=${id}::uuid FOR UPDATE`;
+        const meeting = await tx.event.findUnique({ where: { id } });
+        if (!meeting) throw new ApiException(ErrorCode.NOT_FOUND);
+        if (meeting.cancelledAt) return meeting;
+        const cancelledAt = new Date();
+        const registrations = await tx.eventRegistration.findMany({
+          where: { eventId: id, status: { in: ['PENDING', 'CONFIRMED', 'WAITLIST'] } },
+          orderBy: { id: 'asc' },
+        });
+        const updated = await tx.event.update({
+          where: { id },
+          data: { cancelledAt, cancelReason },
+        });
+        for (const registration of registrations) {
+          await tx.eventRegistration.update({
+            where: { id: registration.id },
+            data: { status: 'CANCELLED' },
+          });
+          await this.audit.record(
+            tx,
+            actor.id,
+            'STATUS_CHANGED',
+            'EventRegistration',
+            registration.id,
+            {
+              from: registration.status,
+              to: 'CANCELLED',
+              reason: 'MEETING_CANCELLED',
+              eventId: id,
+            },
+          );
+        }
+        await this.audit.record(tx, actor.id, 'CANCELLED', 'Event', id, {
+          cancelReason,
+          cancelledAt: cancelledAt.toISOString(),
+        });
+        await this.notifications.notify(
+          tx,
+          registrations.map((r) => r.userId),
+          'EventSessionCancelled',
+          {
+            eventId: id,
+            title: meeting.title,
+            startsAt: meeting.startsAt.toISOString(),
+            reason: cancelReason,
+            cancelledAt: cancelledAt.toISOString(),
+            message: `${meeting.title} — встреча отменена. Причина: ${cancelReason}`,
+          },
+          `meeting-cancelled:event:${id}`,
+        );
+        return updated;
+      }),
+    );
+  }
   async register(actor: Actor, id: string) {
     return this.prisma.$transaction(async (tx) => {
       const user = await lockActiveUser(tx, actor.id);
       await tx.$queryRaw`SELECT "id" FROM "events" WHERE "id"=${id}::uuid FOR UPDATE`;
       const event = await tx.event.findUnique({ where: { id } });
       if (!event) throw new ApiException(ErrorCode.NOT_FOUND);
+      if (event.cancelledAt) throw new ApiException(ErrorCode.EVENT_CANCELLED);
       assertEventRegistration(user.role, event.volunteersOnly);
       if (event.startsAt.getTime() <= Date.now())
         throw new ApiException(ErrorCode.INVALID_TRANSITION);
@@ -235,6 +307,8 @@ export class EventsService {
         where: { id },
         include: { event: true },
       });
+      if (row.event.cancelledAt && status !== 'CANCELLED' && status !== 'REJECTED')
+        throw new ApiException(ErrorCode.EVENT_CANCELLED);
       this.audit.assertTransition('RegistrationStatus', row.status, status);
       if (status === 'CONFIRMED' || status === 'PENDING') {
         const user = await tx.user.findUniqueOrThrow({ where: { id: row.userId } });
@@ -279,7 +353,7 @@ export class EventsService {
     >(Prisma.sql`
       SELECT * FROM (
         SELECT "id", 'TRIP' AS kind, "startsAt" FROM "trips" WHERE "startsAt">=${from} AND "startsAt"<=${to} AND status IN ('OPEN','CLOSED','DONE','REPORTED')
-        UNION ALL SELECT "id", 'EVENT', "startsAt" FROM "events" WHERE "startsAt">=${from} AND "startsAt"<=${to} ${actor ? Prisma.empty : Prisma.sql`AND "isPublic"=true`}
+        UNION ALL SELECT "id", 'EVENT', "startsAt" FROM "events" WHERE "cancelledAt" IS NULL AND "startsAt">=${from} AND "startsAt"<=${to} ${actor ? Prisma.empty : Prisma.sql`AND "isPublic"=true`}
       ) calendar ORDER BY "startsAt", "id" LIMIT ${query.limit} OFFSET ${(query.page - 1) * query.limit}`);
     const [trips, events] = await Promise.all([
       this.prisma.trip.findMany({
@@ -324,7 +398,9 @@ export class EventsService {
       this.prisma.trip.count({
         where: { startsAt: date, status: { in: ['OPEN', 'CLOSED', 'DONE', 'REPORTED'] } },
       }),
-      this.prisma.event.count({ where: { startsAt: date, ...(!actor ? { isPublic: true } : {}) } }),
+      this.prisma.event.count({
+        where: { cancelledAt: null, startsAt: date, ...(!actor ? { isPublic: true } : {}) },
+      }),
     ]);
     return pageResult(rows, counts[0] + counts[1], query);
   }
@@ -339,7 +415,7 @@ export class OpenDaysService {
   ) {}
   async list(query: PageQueryDto, admin = false) {
     const where: Prisma.OpenDaySessionWhereInput = {
-      ...(admin ? {} : { startsAt: { gte: new Date() } }),
+      ...(admin ? {} : { cancelledAt: null, startsAt: { gte: new Date() } }),
       ...(query.search ? { location: { contains: query.search, mode: 'insensitive' } } : {}),
     };
     const [items, total] = await Promise.all([
@@ -380,6 +456,7 @@ export class OpenDaysService {
         );
         if (
           current &&
+          !row.cancelledAt &&
           (row.startsAt.getTime() !== current.startsAt.getTime() ||
             row.location !== current.location)
         ) {
@@ -408,12 +485,68 @@ export class OpenDaysService {
       }),
     );
   }
+  async cancelMeeting(actor: Actor, id: string, input: string) {
+    const cancelReason = meetingReason(input);
+    return retryTransaction(() =>
+      this.prisma.$transaction(async (tx) => {
+        const user = await lockActiveUser(tx, actor.id);
+        if (user.role !== 'ADMIN') throw new ApiException(ErrorCode.FORBIDDEN);
+        await tx.$queryRaw`SELECT "id" FROM "open_day_sessions" WHERE "id"=${id}::uuid FOR UPDATE`;
+        const meeting = await tx.openDaySession.findUnique({ where: { id } });
+        if (!meeting) throw new ApiException(ErrorCode.NOT_FOUND);
+        if (meeting.cancelledAt) return meeting;
+        const cancelledAt = new Date();
+        const registrations = await tx.openDayRegistration.findMany({
+          where: { sessionId: id, cancelledAt: null, attended: false },
+          orderBy: { id: 'asc' },
+        });
+        const updated = await tx.openDaySession.update({
+          where: { id },
+          data: { cancelledAt, cancelReason },
+        });
+        for (const registration of registrations) {
+          await tx.openDayRegistration.update({
+            where: { id: registration.id },
+            data: { cancelledAt },
+          });
+          await this.audit.record(
+            tx,
+            actor.id,
+            'CANCELLED',
+            'OpenDayRegistration',
+            registration.id,
+            { sessionId: id, reason: 'MEETING_CANCELLED' },
+          );
+        }
+        await this.audit.record(tx, actor.id, 'CANCELLED', 'OpenDaySession', id, {
+          cancelReason,
+          cancelledAt: cancelledAt.toISOString(),
+        });
+        await this.notifications.notify(
+          tx,
+          registrations.map((r) => r.userId),
+          'OpenDayCancelled',
+          {
+            sessionId: id,
+            title: 'День открытых дверей',
+            startsAt: meeting.startsAt.toISOString(),
+            reason: cancelReason,
+            cancelledAt: cancelledAt.toISOString(),
+            message: `${'День открытых дверей'} — встреча отменена. Причина: ${cancelReason}`,
+          },
+          `meeting-cancelled:openDaySession:${id}`,
+        );
+        return updated;
+      }),
+    );
+  }
   async register(actor: Actor, id: string) {
     return this.prisma.$transaction(async (tx) => {
       await lockActiveUser(tx, actor.id);
       await tx.$queryRaw`SELECT "id" FROM "open_day_sessions" WHERE "id"=${id}::uuid FOR UPDATE`;
       const session = await tx.openDaySession.findUnique({ where: { id } });
       if (!session) throw new ApiException(ErrorCode.NOT_FOUND);
+      if (session.cancelledAt) throw new ApiException(ErrorCode.OPEN_DAY_CANCELLED);
       if (session.startsAt <= new Date()) throw new ApiException(ErrorCode.INVALID_TRANSITION);
       const existing = await tx.openDayRegistration.findUnique({
         where: { sessionId_userId: { sessionId: id, userId: actor.id } },
@@ -447,6 +580,7 @@ export class OpenDaysService {
         where: { sessionId_userId: { sessionId: id, userId: actor.id } },
       });
       if (row.attended) throw new ApiException(ErrorCode.INVALID_TRANSITION);
+      if (row.cancelledAt) return row;
       await this.audit.record(tx, actor.id, 'CANCELLED', 'OpenDayRegistration', row.id);
       return tx.openDayRegistration.update({
         where: { id: row.id },
@@ -470,6 +604,8 @@ export class OpenDaysService {
       const current = await tx.openDayRegistration.findUnique({
         where: { sessionId_userId: { sessionId, userId } },
       });
+      if (session.cancelledAt && (attended || !current))
+        throw new ApiException(ErrorCode.OPEN_DAY_CANCELLED);
       const future = session.startsAt > new Date();
       if (future && (attended || !current) && (user.anonymizedAt || user.isBlocked))
         throw new ApiException(ErrorCode.FORBIDDEN);

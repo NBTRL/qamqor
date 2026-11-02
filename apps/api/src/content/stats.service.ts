@@ -40,9 +40,11 @@ export class StatsService {
             place: { isActive: true },
           },
         }),
-        this.prisma.event.count({ where: { startsAt: { gte: from, lte: now } } }),
         this.prisma.event.count({
-          where: { type: 'MASTER_CLASS', startsAt: { gte: from, lte: now } },
+          where: { cancelledAt: null, startsAt: { gte: from, lte: now } },
+        }),
+        this.prisma.event.count({
+          where: { cancelledAt: null, type: 'MASTER_CLASS', startsAt: { gte: from, lte: now } },
         }),
         this.prisma.place.aggregate({
           where: { isActive: true },
@@ -53,7 +55,7 @@ export class StatsService {
           Array<{ total: bigint }>
         >`SELECT COUNT(DISTINCT "userId") AS total FROM (
         SELECT r."userId" FROM "trip_registrations" r JOIN "trips" t ON t.id=r."tripId" WHERE r.status='ATTENDED' AND t."startsAt">=${from} AND t."startsAt"<=${now}
-        UNION SELECT r."userId" FROM "event_registrations" r JOIN "events" e ON e.id=r."eventId" WHERE r.status='ATTENDED' AND e."startsAt">=${from} AND e."startsAt"<=${now}
+        UNION SELECT r."userId" FROM "event_registrations" r JOIN "events" e ON e.id=r."eventId" WHERE e."cancelledAt" IS NULL AND r.status='ATTENDED' AND e."startsAt">=${from} AND e."startsAt"<=${now}
       ) participants`,
       ]);
     return {

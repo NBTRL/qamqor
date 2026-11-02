@@ -27,6 +27,8 @@ export const errorMessages = {
     'Вход через Telegram пока не настроен. Обратитесь к администратору.',
   [ErrorCode.ACCOUNT_BLOCKED]: 'Аккаунт заблокирован. Обратитесь к администратору.',
   [ErrorCode.CONFLICT]: 'Операция конфликтует с существующими данными.',
+  [ErrorCode.EVENT_CANCELLED]: 'Мероприятие отменено. Регистрация закрыта.',
+  [ErrorCode.OPEN_DAY_CANCELLED]: 'День открытых дверей отменен. Регистрация закрыта.',
   [ErrorCode.EVENT_FULL]: 'На мероприятии нет свободных мест.',
   [ErrorCode.EVENT_ALREADY_REGISTERED]: 'Вы уже записаны на это мероприятие.',
   [ErrorCode.OPEN_DAY_FULL]: 'На сессии Дня открытых дверей нет свободных мест.',

@@ -39,6 +39,7 @@ import {
   UserQueryDto,
 } from './admin.dto.js';
 import {
+  MeetingCancelDto,
   ApplicationDecisionDto,
   ApplicationQueryDto,
   EventPatchDto,
@@ -203,7 +204,7 @@ export class AdminController {
     return this.data.placeDelete(actor, id);
   }
   @Get('events') @ApiPage(EventResponseDto) eventsList(@Query() query: EventQueryDto) {
-    return this.events.list(query);
+    return this.events.list(query, true);
   }
   @Get('events/:id') @ApiOkResponse({ type: EventResponseDto }) event(
     @Param('id', ParseUUIDPipe) id: string,
@@ -222,6 +223,16 @@ export class AdminController {
     @Body() dto: EventPatchDto,
   ) {
     return this.events.write(actor, dto, id);
+  }
+  @Post('events/:id/cancel')
+  @HttpCode(200)
+  @ApiOkResponse({ type: EventResponseDto })
+  eventCancel(
+    @CurrentUser() actor: Actor,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: MeetingCancelDto,
+  ) {
+    return this.events.cancelMeeting(actor, id, dto.cancelReason);
   }
   @Delete('events/:id') @ApiOkResponse({ type: OkDto }) eventDelete(
     @CurrentUser() actor: Actor,
@@ -264,6 +275,16 @@ export class AdminController {
     @Body() dto: OpenDayPatchDto,
   ) {
     return this.days.write(actor, dto, id);
+  }
+  @Post('open-days/:id/cancel')
+  @HttpCode(200)
+  @ApiOkResponse({ type: OpenDayResponseDto })
+  dayCancel(
+    @CurrentUser() actor: Actor,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: MeetingCancelDto,
+  ) {
+    return this.days.cancelMeeting(actor, id, dto.cancelReason);
   }
   @Delete('open-days/:id') @ApiOkResponse({ type: OkDto }) dayDelete(
     @CurrentUser() actor: Actor,

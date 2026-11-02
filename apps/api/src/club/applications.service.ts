@@ -22,7 +22,7 @@ const completedOpenDayWhere = (now = new Date()) =>
   ({
     attended: true,
     cancelledAt: null,
-    session: { startsAt: { lte: now } },
+    session: { cancelledAt: null, startsAt: { lte: now } },
   }) satisfies Prisma.OpenDayRegistrationWhereInput;
 const applicationInclude = () =>
   ({
