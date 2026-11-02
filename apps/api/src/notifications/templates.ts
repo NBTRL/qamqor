@@ -21,7 +21,13 @@ export function notificationMessage(
   const date = formatDate(data.startsAt);
   const end = formatDate(data.endsAt);
   const location =
-    typeof data.location === 'string' && data.location ? `\nМесто: ${data.location}` : '';
+    type === 'TripRescheduled'
+      ? typeof data.meetingPoint === 'string' && data.meetingPoint
+        ? `\nМесто сбора: ${data.meetingPoint}`
+        : ''
+      : typeof data.location === 'string' && data.location
+        ? `\nМесто: ${data.location}`
+        : '';
   const subjects: Record<NotificationType, string> = {
     ApplicationStatusChanged: 'Изменился статус вашей заявки',
     RegistrationConfirmed: 'Запись на поездку подтверждена',
@@ -30,7 +36,7 @@ export function notificationMessage(
     RegistrationPromotedFromWaitlist: 'Вас пригласили из листа ожидания',
     RegistrationCancelled: 'Запись на поездку отменена',
     TripCancelled: 'Поездка отменена',
-    TripRescheduled: 'Изменилось время поездки',
+    TripRescheduled: 'Изменились время или место сбора поездки',
     TripReminder24h: 'Поездка завтра',
     TripReminder3h: 'До поездки три часа',
     NewRegistrationForCurator: 'Новая запись на вашу поездку',

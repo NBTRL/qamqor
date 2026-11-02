@@ -26,4 +26,17 @@ describe('Telegram lifecycle in deployment roles', () => {
     await service.onModuleInit();
     expect(setup).toHaveBeenCalledOnce();
   });
+  it('subscribes to bot blocking updates in polling mode too', async () => {
+    const start = vi.fn().mockResolvedValue(undefined);
+    const service = Object.assign(Object.create(TelegramService.prototype), {
+      runtime: { offline: false, telegram: true },
+      bot: { start },
+      env: { TELEGRAM_MODE: 'polling' },
+    }) as TelegramService;
+    vi.spyOn(service, 'setup').mockResolvedValue({ username: 'bot', mode: 'polling' });
+    await service.onModuleInit();
+    expect(start).toHaveBeenCalledWith({
+      allowed_updates: ['message', 'callback_query', 'my_chat_member'],
+    });
+  });
 });

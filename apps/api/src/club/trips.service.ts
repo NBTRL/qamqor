@@ -188,18 +188,33 @@ export class TripsService {
         const updated = await tx.trip.update({ where: { id }, data: { ...dto, startsAt, endsAt } });
         await this.audit.record(tx, actor.id, 'UPDATED', 'Trip', id, { fields: Object.keys(dto) });
         if (
-          startsAt.getTime() !== trip.startsAt.getTime() ||
-          endsAt.getTime() !== trip.endsAt.getTime()
+          ['OPEN', 'CLOSED'].includes(updated.status) &&
+          updated.startsAt > new Date() &&
+          (startsAt.getTime() !== trip.startsAt.getTime() ||
+            endsAt.getTime() !== trip.endsAt.getTime() ||
+            updated.meetingPoint !== trip.meetingPoint)
         ) {
           const registrations = await tx.tripRegistration.findMany({
-            where: { tripId: id, status: { in: [...active] } },
+            where: {
+              tripId: id,
+              status: { in: [...active] },
+              user: { role: { in: ['VOLUNTEER', 'ADMIN'] } },
+            },
             select: { userId: true },
           });
           await this.notifications.notify(
             tx,
             registrations.map((row) => row.userId),
             'TripRescheduled',
-            { tripId: id, title: dto.title ?? trip.title, startsAt: startsAt.toISOString() },
+            {
+              tripId: id,
+              title: updated.title,
+              startsAt: startsAt.toISOString(),
+              endsAt: endsAt.toISOString(),
+              meetingPoint: updated.meetingPoint,
+              message:
+                'Изменились время или место сбора поездки. Проверьте актуальные данные перед выездом.',
+            },
           );
         }
         if (updated.capacity > trip.capacity)

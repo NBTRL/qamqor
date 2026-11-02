@@ -95,7 +95,7 @@ afterEach(() => {
 });
 
 describe('Notification settings persistence', () => {
-  it.each(['EventRescheduled', 'OpenDayRescheduled'] as const)(
+  it.each(['EventRescheduled', 'OpenDayRescheduled', 'TripRescheduled'] as const)(
     'shows %s details, its destination and channel settings',
     async (type) => {
       const { state, mount } = fixture();
@@ -113,21 +113,31 @@ describe('Notification settings persistence', () => {
         payload: {
           title: 'Новое расписание',
           startsAt: '2026-11-01T10:00:00Z',
-          location: 'Новый адрес',
+          ...(type === 'TripRescheduled'
+            ? { meetingPoint: 'Новый адрес' }
+            : { location: 'Новый адрес' }),
           ...(type === 'EventRescheduled'
             ? { eventId, endsAt: '2026-11-01T11:00:00Z' }
-            : { sessionId: eventId }),
+            : type === 'TripRescheduled'
+              ? { tripId: eventId, endsAt: '2026-11-01T11:00:00Z' }
+              : { sessionId: eventId }),
         },
       });
       mount();
-      await screen.findByText('Место: Новый адрес');
+      await screen.findByText(
+        type === 'TripRescheduled' ? 'Место сбора: Новый адрес' : 'Место: Новый адрес',
+      );
       expect(screen.getByText(/Начало:.*13:00 \(Москва\)/)).toBeVisible();
-      if (type === 'EventRescheduled')
+      if (type !== 'OpenDayRescheduled')
         expect(screen.getByText(/Окончание:.*14:00 \(Москва\)/)).toBeVisible();
       else expect(screen.queryByText(/Окончание:/)).not.toBeInTheDocument();
       expect(screen.getByRole('link', { name: 'Подробнее' })).toHaveAttribute(
         'href',
-        type === 'EventRescheduled' ? `/events/${eventId}` : '/cabinet/registrations',
+        type === 'EventRescheduled'
+          ? `/events/${eventId}`
+          : type === 'TripRescheduled'
+            ? `/trips/${eventId}`
+            : '/cabinet/registrations',
       );
       expect(checkbox(type)).toBeChecked();
       expect(checkbox(type, 'e-mail')).toBeChecked();

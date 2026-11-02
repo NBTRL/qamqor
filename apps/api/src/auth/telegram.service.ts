@@ -15,6 +15,13 @@ import { CryptoService } from '../common/crypto.service.js';
 import { RedisService } from '../common/redis.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ApiException } from '../common/api-exception.js';
+import { membershipEntries } from '../club/membership-query.js';
+
+const allowedUpdates: Array<Exclude<keyof Update, 'update_id'>> = [
+  'message',
+  'callback_query',
+  'my_chat_member',
+];
 
 export function deviceDescription(agent: string): string {
   const browser = /Edg\//.test(agent)
@@ -56,6 +63,41 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     const bot = this.bot;
     if (!bot) return;
     bot.catch(() => this.logger.warn('TELEGRAM_UPDATE_FAILED'));
+    // An authenticated Telegram update restores delivery without a new website login.
+    // Never bind another account or change the user's channel preferences here.
+    bot.use(async (ctx, next) => {
+      if (
+        ctx.chat?.type === 'private' &&
+        ctx.from?.id === ctx.chat.id &&
+        (ctx.message || ctx.callbackQuery)
+      ) {
+        await this.prisma.user.updateMany({
+          where: {
+            telegramId: BigInt(ctx.from.id),
+            chatId: BigInt(ctx.chat.id),
+            isBlocked: false,
+            anonymizedAt: null,
+            botBlockedAt: { not: null },
+          },
+          data: { botBlockedAt: null },
+        });
+      }
+      await next();
+    });
+    bot.on('my_chat_member', async (ctx) => {
+      if (ctx.chat.type !== 'private') return;
+      const status = ctx.myChatMember.new_chat_member.status;
+      if (status !== 'member' && status !== 'kicked') return;
+      await this.prisma.user.updateMany({
+        where: {
+          telegramId: BigInt(ctx.chat.id),
+          chatId: BigInt(ctx.chat.id),
+          isBlocked: false,
+          anonymizedAt: null,
+        },
+        data: { botBlockedAt: status === 'kicked' ? new Date(ctx.myChatMember.date * 1000) : null },
+      });
+    });
     bot.command('start', async (ctx) => {
       if (ctx.chat.type !== 'private') return;
       const token = ctx.match.startsWith('login_') ? ctx.match.slice(6) : '';
@@ -138,41 +180,18 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         await ctx.reply('Сначала войдите через сайт Клуба волонтеров.');
         return;
       }
-      const [trips, events, days] = await Promise.all([
-        this.prisma.tripRegistration.findMany({
-          where: {
-            userId: user.id,
-            status: { in: ['PENDING', 'CONFIRMED', 'WAITLIST'] },
-            trip: { startsAt: { gte: new Date() }, status: { in: ['OPEN', 'CLOSED'] } },
-          },
-          include: { trip: true },
-          take: 10,
-          orderBy: { trip: { startsAt: 'asc' } },
-        }),
-        this.prisma.eventRegistration.findMany({
-          where: { userId: user.id, status: 'CONFIRMED', event: { startsAt: { gte: new Date() } } },
-          include: { event: true },
-          take: 10,
-          orderBy: { event: { startsAt: 'asc' } },
-        }),
-        this.prisma.openDayRegistration.findMany({
-          where: { userId: user.id, cancelledAt: null, session: { startsAt: { gte: new Date() } } },
-          include: { session: true },
-          take: 10,
-          orderBy: { session: { startsAt: 'asc' } },
-        }),
-      ]);
+      const { rows } = await membershipEntries(this.prisma, user.id, {
+        upcoming: true,
+        page: 1,
+        limit: 10,
+      });
       const date = (value: Date) =>
         new Intl.DateTimeFormat('ru-RU', {
           timeZone: DISPLAY_TIME_ZONE,
           dateStyle: 'short',
           timeStyle: 'short',
         }).format(value);
-      const lines = [
-        ...trips.map((item) => `${date(item.trip.startsAt)} — ${item.trip.title}`),
-        ...events.map((item) => `${date(item.event.startsAt)} — ${item.event.title}`),
-        ...days.map((item) => `${date(item.session.startsAt)} — День открытых дверей`),
-      ];
+      const lines = rows.map((item) => `${date(item.startsAt)} — ${item.title}`);
       await ctx.reply(
         lines.length
           ? `Ваши ближайшие записи:\n${lines.join('\n')}`
@@ -200,7 +219,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         `${this.env.PUBLIC_API_URL.replace(/\/$/, '')}/api/v1/telegram/webhook`,
         {
           secret_token: this.env.TELEGRAM_WEBHOOK_SECRET,
-          allowed_updates: ['message', 'callback_query'],
+          allowed_updates: allowedUpdates,
         },
       );
     } else await bot.api.deleteWebhook({ drop_pending_updates: false });
@@ -218,11 +237,9 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     }
     await this.setup();
     if (this.env.TELEGRAM_MODE === 'polling')
-      this.polling = this.bot
-        .start({ allowed_updates: ['message', 'callback_query'] })
-        .catch(() => {
-          this.logger.error('TELEGRAM_POLLING_STOPPED');
-        });
+      this.polling = this.bot.start({ allowed_updates: allowedUpdates }).catch(() => {
+        this.logger.error('TELEGRAM_POLLING_STOPPED');
+      });
   }
   verifyWebhook(secret: string | undefined): void {
     if (
