@@ -32,6 +32,8 @@ export const NOTIFICATION_TYPES = [
   'OpenDayRegistered',
   'EventRescheduled',
   'OpenDayRescheduled',
+  'EventSessionCancelled',
+  'OpenDayCancelled',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 export const UPLOAD_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;

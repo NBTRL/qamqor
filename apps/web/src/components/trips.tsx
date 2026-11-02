@@ -315,7 +315,14 @@ export function EventDetail({ id }: { id: string }) {
       </p>
       <p>{item.location}</p>
       <p>{item.description}</p>
-      {can(me, item.volunteersOnly ? 'event.register.volunteersOnly' : 'event.register.public') ? (
+      {item.cancelledAt ? (
+        <p className="notice" role="status">
+          Мероприятие отменено. Причина: {item.cancelReason}. Регистрация закрыта.
+        </p>
+      ) : can(
+          me,
+          item.volunteersOnly ? 'event.register.volunteersOnly' : 'event.register.public',
+        ) ? (
         <RegistrationActions id={id} kind="EVENT" disabled={Date.parse(item.startsAt) < now} />
       ) : (
         <p className="notice">Доступно после вступления в Клуб</p>

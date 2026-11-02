@@ -232,7 +232,9 @@ export function OpenDays() {
                 {day.location} · до {day.capacity} участников
               </p>
               <p>{day.notes}</p>
-              {me ? (
+              {day.cancelledAt ? (
+                <p className="notice">ДОД отменен. Причина: {day.cancelReason}</p>
+              ) : me ? (
                 <Button disabled={signup.isPending} onClick={() => signup.mutate(day.id)}>
                   Записаться
                 </Button>

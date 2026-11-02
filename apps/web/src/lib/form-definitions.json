@@ -168,7 +168,9 @@
       "EventCancelled",
       "OpenDayRegistered",
       "EventRescheduled",
-      "OpenDayRescheduled"
+      "OpenDayRescheduled",
+      "EventSessionCancelled",
+      "OpenDayCancelled"
     ]
   },
   "OpenDayPatchDto": {
@@ -335,7 +337,7 @@
     "type": "object",
     "properties": {
       "items": {
-        "maxItems": 18,
+        "maxItems": 20,
         "type": "array",
         "items": { "$ref": "#/components/schemas/SettingDto" }
       }

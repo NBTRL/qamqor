@@ -126,6 +126,8 @@ export const notificationTypeLabels: Record<import('./constants.js').Notificatio
   OpenDayReminder: 'Напоминание о Дне открытых дверей',
   EventRegistered: 'Запись на мероприятие',
   EventCancelled: 'Отмена записи на мероприятие',
+  EventSessionCancelled: 'Мероприятие отменено',
+  OpenDayCancelled: 'День открытых дверей отменен',
   EventRescheduled: 'Изменилось время или место мероприятия',
   OpenDayRegistered: 'Запись на День открытых дверей',
   OpenDayRescheduled: 'Изменилось время или место Дня открытых дверей',

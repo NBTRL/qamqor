@@ -114,8 +114,13 @@ export function AdminResource({ resourceKey }: { resourceKey: keyof typeof resou
   const resource = resources[resourceKey];
   const [edit, setEdit] = useState<Row | null>(null);
   const [creating, setCreating] = useState(false);
+  const [cancelling, setCancelling] = useState<Row | null>(null);
   const [deleting, setDeleting] = useState<Row | null>(null);
-  const [registrations, setRegistrations] = useState<{ id: string; startsAt: string } | null>(null);
+  const [registrations, setRegistrations] = useState<{
+    id: string;
+    startsAt: string;
+    cancelled: boolean;
+  } | null>(null);
   const [filter, setFilter] = useState('');
   const cache = useQueryClient();
   const refresh = () => {
@@ -222,6 +227,13 @@ export function AdminResource({ resourceKey }: { resourceKey: keyof typeof resou
                 )}
                 {row['role'] && <p>{userRoleLabels[row['role'] as UserRole]}</p>}
                 {row['isBlocked'] === true && <span className="badge">Заблокирован</span>}
+                {!!row.cancelledAt && (
+                  <p>
+                    <span className="badge">Встреча отменена</span>
+                    <br />
+                    {String(row.cancelReason ?? '')}
+                  </p>
+                )}
                 {row['startsAt'] && <p>{date(String(row['startsAt']))}</p>}
                 {row['publishedAt'] && <p>{date(String(row['publishedAt']))}</p>}
                 {row['amount'] && (
@@ -241,16 +253,25 @@ export function AdminResource({ resourceKey }: { resourceKey: keyof typeof resou
                     Редактировать
                   </Button>
                 )}
-                {'remove' in resource && (
+                {'remove' in resource && !row.cancelledAt && (
                   <Button variant="secondary" onClick={() => setDeleting(row)}>
                     {resourceKey === 'curators' ? 'Снять назначение' : 'Удалить'}
+                  </Button>
+                )}
+                {['open-days', 'events'].includes(resourceKey) && !row.cancelledAt && (
+                  <Button variant="danger" onClick={() => setCancelling(row)}>
+                    Отменить встречу
                   </Button>
                 )}
                 {['open-days', 'events'].includes(resourceKey) && (
                   <Button
                     variant="secondary"
                     onClick={() =>
-                      setRegistrations({ id: rowId(row), startsAt: String(row.startsAt) })
+                      setRegistrations({
+                        id: rowId(row),
+                        startsAt: String(row.startsAt),
+                        cancelled: !!row.cancelledAt,
+                      })
                     }
                   >
                     Участники
@@ -283,6 +304,19 @@ export function AdminResource({ resourceKey }: { resourceKey: keyof typeof resou
           onDone={refresh}
         />
       </Modal>
+      {cancelling && (resourceKey === 'events' || resourceKey === 'open-days') && (
+        <CancelMeetingDialog
+          key={rowId(cancelling)}
+          id={rowId(cancelling)}
+          title={nameOf(cancelling)}
+          kind={resourceKey}
+          onClose={() => setCancelling(null)}
+          onDone={() => {
+            setCancelling(null);
+            refresh();
+          }}
+        />
+      )}
       <Modal open={!!deleting} onClose={() => setDeleting(null)} title="Подтвердите удаление">
         <p>{deleting && nameOf(deleting)}</p>
         <p>
@@ -305,20 +339,94 @@ export function AdminResource({ resourceKey }: { resourceKey: keyof typeof resou
             kind={resourceKey === 'events' ? 'EVENT' : 'OPEN_DAY'}
             id={registrations.id}
             startsAt={registrations.startsAt}
+            cancelled={registrations.cancelled}
           />
         )}
       </Modal>
     </>
   );
 }
+function CancelMeetingDialog({
+  id,
+  title,
+  kind,
+  onClose,
+  onDone,
+}: {
+  id: string;
+  title: string;
+  kind: 'events' | 'open-days';
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [reason, setReason] = useState('');
+  const cache = useQueryClient();
+  const cancel = useMutation({
+    mutationFn: async (cancelReason: string): Promise<unknown> =>
+      kind === 'events'
+        ? result(
+            api.POST('/api/v1/admin/events/{id}/cancel', {
+              params: { path: { id } },
+              body: { cancelReason },
+            }),
+          )
+        : result(
+            api.POST('/api/v1/admin/open-days/{id}/cancel', {
+              params: { path: { id } },
+              body: { cancelReason },
+            }),
+          ),
+    onSuccess: () => {
+      void cache.invalidateQueries();
+      onDone();
+    },
+  });
+  return (
+    <Modal
+      open
+      onClose={() => {
+        if (!cancel.isPending) onClose();
+      }}
+      title="Отмена встречи"
+    >
+      <p>{title}</p>
+      <p>
+        Регистрация закроется, действующие записи будут отменены. Участники получат уведомление с
+        причиной. История и отмеченная явка сохранятся. Восстановить встречу после отмены нельзя.
+      </p>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!cancel.isPending && reason.trim()) cancel.mutate(reason.trim());
+        }}
+      >
+        <Field label="Причина отмены">
+          <textarea
+            required
+            maxLength={2000}
+            value={reason}
+            disabled={cancel.isPending}
+            onChange={(event) => setReason(event.target.value)}
+          />
+        </Field>
+        <ErrorNotice error={cancel.error} />
+        <Button type="submit" variant="danger" disabled={cancel.isPending || !reason.trim()}>
+          Подтвердить отмену встречи
+        </Button>
+      </form>
+    </Modal>
+  );
+}
 function AdminParticipants({
   kind,
   id,
   startsAt,
+  cancelled,
 }: {
   kind: 'EVENT' | 'OPEN_DAY';
   id: string;
   startsAt: string;
+  cancelled: boolean;
 }) {
   const now = useNow();
   const future = new Date(startsAt).getTime() > now;
@@ -386,7 +494,11 @@ function AdminParticipants({
               'attended' in row ? (
                 <Button
                   variant="secondary"
-                  disabled={mutation.isPending || !!row.cancelledAt || (!row.attended && future)}
+                  disabled={
+                    mutation.isPending ||
+                    !!row.cancelledAt ||
+                    (!row.attended && (future || cancelled))
+                  }
                   onClick={() =>
                     mutation.mutate({ registrationId: row.id, attended: !row.attended })
                   }
@@ -399,16 +511,24 @@ function AdminParticipants({
                 </Button>
               ) : (
                 <div className="actions">
-                  {registrationStatusTransitions[row.status].map((status) => (
-                    <Button
-                      key={status}
-                      variant="secondary"
-                      disabled={mutation.isPending}
-                      onClick={() => mutation.mutate({ registrationId: row.id, status })}
-                    >
-                      {registrationStatusLabels[status]}
-                    </Button>
-                  ))}
+                  {registrationStatusTransitions[row.status]
+                    .filter(
+                      (status) =>
+                        !cancelled ||
+                        [RegistrationStatus.CANCELLED, RegistrationStatus.REJECTED].includes(
+                          status,
+                        ),
+                    )
+                    .map((status) => (
+                      <Button
+                        key={status}
+                        variant="secondary"
+                        disabled={mutation.isPending}
+                        onClick={() => mutation.mutate({ registrationId: row.id, status })}
+                      >
+                        {registrationStatusLabels[status]}
+                      </Button>
+                    ))}
                 </div>
               ),
           },

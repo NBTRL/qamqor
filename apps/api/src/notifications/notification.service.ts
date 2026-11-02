@@ -269,7 +269,15 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
     tx: Tx,
     row: Notification & { user: { role: string } },
   ): Promise<boolean> {
-    if (!['TripRescheduled', 'EventRescheduled', 'OpenDayRescheduled'].includes(row.type))
+    if (
+      ![
+        'TripRescheduled',
+        'EventRescheduled',
+        'OpenDayRescheduled',
+        'EventRegistered',
+        'OpenDayRegistered',
+      ].includes(row.type)
+    )
       return true;
     const data = row.payload;
     if (!data || typeof data !== 'object' || Array.isArray(data)) return false;
@@ -291,7 +299,7 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
         (data.meetingPoint === undefined || registration.trip.meetingPoint === data.meetingPoint),
       );
     }
-    if (row.type === 'EventRescheduled') {
+    if (row.type === 'EventRescheduled' || row.type === 'EventRegistered') {
       if (typeof data.eventId !== 'string' || !isUUID(data.eventId)) return false;
       const registration = await tx.eventRegistration.findUnique({
         where: { eventId_userId: { eventId: data.eventId, userId: row.userId } },
@@ -299,11 +307,13 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
       });
       return Boolean(
         registration &&
+        !registration.event.cancelledAt &&
         ['PENDING', 'CONFIRMED', 'WAITLIST'].includes(registration.status) &&
         (!registration.event.volunteersOnly || ['VOLUNTEER', 'ADMIN'].includes(row.user.role)) &&
         registration.event.startsAt.toISOString() === data.startsAt &&
-        registration.event.endsAt.toISOString() === data.endsAt &&
-        registration.event.location === data.location,
+        (row.type === 'EventRegistered' ||
+          (registration.event.endsAt.toISOString() === data.endsAt &&
+            registration.event.location === data.location)),
       );
     }
     if (typeof data.sessionId !== 'string' || !isUUID(data.sessionId)) return false;
@@ -313,10 +323,11 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
     });
     return Boolean(
       registration &&
+      !registration.session.cancelledAt &&
       !registration.cancelledAt &&
       !registration.attended &&
       registration.session.startsAt.toISOString() === data.startsAt &&
-      registration.session.location === data.location,
+      (row.type === 'OpenDayRegistered' || registration.session.location === data.location),
     );
   }
   private async reminderCurrent(tx: Tx, row: Notification): Promise<boolean> {
@@ -340,6 +351,7 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
       });
       return Boolean(
         registration &&
+        !registration.session.cancelledAt &&
         !registration.cancelledAt &&
         !registration.attended &&
         registration.session.startsAt > new Date() &&

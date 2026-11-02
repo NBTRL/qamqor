@@ -949,6 +949,22 @@ export interface paths {
         patch: operations["AdminController_eventUpdate"];
         trace?: never;
     };
+    "/api/v1/admin/events/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AdminController_eventCancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/events/{id}/registrations": {
         parameters: {
             query?: never;
@@ -1011,6 +1027,22 @@ export interface paths {
         options?: never;
         head?: never;
         patch: operations["AdminController_dayUpdate"];
+        trace?: never;
+    };
+    "/api/v1/admin/open-days/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AdminController_dayCancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/admin/open-days/{id}/registrations": {
@@ -1658,7 +1690,7 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /** @enum {string} */
-        ErrorCode: "INVALID_TRANSITION" | "TRIP_FULL" | "TRIP_ALREADY_REGISTERED" | "TRIP_NOT_OPEN" | "FORBIDDEN_PLACE" | "UNDERAGE" | "ONBOARDING_REQUIRED" | "OPEN_DAY_REQUIRED" | "TELEGRAM_CONTACT_MISMATCH" | "LOGIN_TOKEN_EXPIRED" | "LOGIN_TOKEN_INVALID" | "ADMIN_EMAIL_REQUIRED" | "ADMIN_CODE_INVALID" | "EMAIL_ALREADY_USED" | "BOT_BLOCKED" | "EVENT_VOLUNTEERS_ONLY" | "RATE_LIMITED" | "VALIDATION_ERROR" | "UNAUTHORIZED" | "FORBIDDEN" | "NOT_FOUND" | "INTERNAL_ERROR" | "TELEGRAM_UNAVAILABLE" | "ACCOUNT_BLOCKED" | "CONFLICT" | "EVENT_FULL" | "EVENT_ALREADY_REGISTERED" | "OPEN_DAY_FULL" | "OPEN_DAY_ALREADY_REGISTERED";
+        ErrorCode: "INVALID_TRANSITION" | "TRIP_FULL" | "TRIP_ALREADY_REGISTERED" | "TRIP_NOT_OPEN" | "FORBIDDEN_PLACE" | "UNDERAGE" | "ONBOARDING_REQUIRED" | "OPEN_DAY_REQUIRED" | "TELEGRAM_CONTACT_MISMATCH" | "LOGIN_TOKEN_EXPIRED" | "LOGIN_TOKEN_INVALID" | "ADMIN_EMAIL_REQUIRED" | "ADMIN_CODE_INVALID" | "EMAIL_ALREADY_USED" | "BOT_BLOCKED" | "EVENT_VOLUNTEERS_ONLY" | "RATE_LIMITED" | "VALIDATION_ERROR" | "UNAUTHORIZED" | "FORBIDDEN" | "NOT_FOUND" | "INTERNAL_ERROR" | "TELEGRAM_UNAVAILABLE" | "ACCOUNT_BLOCKED" | "CONFLICT" | "EVENT_CANCELLED" | "OPEN_DAY_CANCELLED" | "EVENT_FULL" | "EVENT_ALREADY_REGISTERED" | "OPEN_DAY_FULL" | "OPEN_DAY_ALREADY_REGISTERED";
         ApiErrorDto: {
             /** @example 400 */
             statusCode: number;
@@ -1980,6 +2012,9 @@ export interface components {
             isPublic: boolean;
             /** @default false */
             volunteersOnly: boolean;
+            /** Format: date-time */
+            cancelledAt: string | null;
+            cancelReason: string | null;
             /** Format: uuid */
             id: string;
         };
@@ -2004,6 +2039,9 @@ export interface components {
             hasOpenDayAttended: boolean;
         };
         MeRegistrationResponseDto: {
+            /** Format: date-time */
+            entityCancelledAt?: string | null;
+            cancelReason?: string | null;
             /** Format: uuid */
             id: string;
             /** @enum {string} */
@@ -2058,11 +2096,14 @@ export interface components {
             /** Format: uri */
             registrationUrl?: string | null;
             notes?: string;
+            /** Format: date-time */
+            cancelledAt: string | null;
+            cancelReason: string | null;
             /** Format: uuid */
             id: string;
         };
         /** @enum {string} */
-        NotificationType: "ApplicationStatusChanged" | "RegistrationConfirmed" | "RegistrationRejected" | "RegistrationWaitlisted" | "RegistrationPromotedFromWaitlist" | "RegistrationCancelled" | "TripCancelled" | "TripRescheduled" | "TripReminder24h" | "TripReminder3h" | "NewRegistrationForCurator" | "ReportRequestedFromCurator" | "OpenDayReminder" | "EventRegistered" | "EventCancelled" | "OpenDayRegistered" | "EventRescheduled" | "OpenDayRescheduled";
+        NotificationType: "ApplicationStatusChanged" | "RegistrationConfirmed" | "RegistrationRejected" | "RegistrationWaitlisted" | "RegistrationPromotedFromWaitlist" | "RegistrationCancelled" | "TripCancelled" | "TripRescheduled" | "TripReminder24h" | "TripReminder3h" | "NewRegistrationForCurator" | "ReportRequestedFromCurator" | "OpenDayReminder" | "EventRegistered" | "EventCancelled" | "OpenDayRegistered" | "EventRescheduled" | "OpenDayRescheduled" | "EventSessionCancelled" | "OpenDayCancelled";
         NotificationResponseDto: {
             /** Format: uuid */
             id: string;
@@ -2317,6 +2358,9 @@ export interface components {
             isPublic: boolean;
             /** @default false */
             volunteersOnly: boolean;
+        };
+        MeetingCancelDto: {
+            cancelReason: string;
         };
         AdminEventRegistrationDto: {
             /** Format: uuid */
@@ -5383,6 +5427,39 @@ export interface operations {
             };
         };
     };
+    AdminController_eventCancel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MeetingCancelDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventResponseDto"];
+                };
+            };
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
     AdminController_eventRegistrations: {
         parameters: {
             query?: {
@@ -5585,6 +5662,39 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["OpenDayPatchDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpenDayResponseDto"];
+                };
+            };
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiErrorDto"];
+                };
+            };
+        };
+    };
+    AdminController_dayCancel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MeetingCancelDto"];
             };
         };
         responses: {

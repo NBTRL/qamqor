@@ -53,7 +53,7 @@ export class ReminderService implements OnModuleInit, OnModuleDestroy {
     });
     for (const trip of trips) await this.scheduleTrip(trip.id);
     const days = await this.prisma.openDaySession.findMany({
-      where: { startsAt: { gte: new Date() } },
+      where: { cancelledAt: null, startsAt: { gte: new Date() } },
       select: { id: true, startsAt: true },
     });
     for (const day of days)
@@ -155,10 +155,11 @@ export class ReminderService implements OnModuleInit, OnModuleDestroy {
         await tx.$queryRaw`SELECT "id" FROM "open_day_sessions" WHERE "id"=${data.id}::uuid FOR UPDATE`;
         const day = await tx.openDaySession.findUnique({
           where: { id: data.id },
-          include: { registrations: { where: { cancelledAt: null } } },
+          include: { registrations: { where: { cancelledAt: null, attended: false } } },
         });
         if (
           !day ||
+          day.cancelledAt ||
           day.startsAt.toISOString() !== data.startsAt ||
           day.startsAt.getTime() <= Date.now()
         )

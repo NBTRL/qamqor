@@ -5026,6 +5026,61 @@
         ]
       }
     },
+    "/api/v1/admin/events/{id}/cancel": {
+      "post": {
+        "operationId": "AdminController_eventCancel",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MeetingCancelDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventResponseDto"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/admin/events/{id}/registrations": {
       "get": {
         "operationId": "AdminController_eventRegistrations",
@@ -5419,6 +5474,61 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OkDto"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/open-days/{id}/cancel": {
+      "post": {
+        "operationId": "AdminController_dayCancel",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MeetingCancelDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenDayResponseDto"
                 }
               }
             }
@@ -9735,6 +9845,8 @@
           "TELEGRAM_UNAVAILABLE",
           "ACCOUNT_BLOCKED",
           "CONFLICT",
+          "EVENT_CANCELLED",
+          "OPEN_DAY_CANCELLED",
           "EVENT_FULL",
           "EVENT_ALREADY_REGISTERED",
           "OPEN_DAY_FULL",
@@ -10826,6 +10938,15 @@
             "type": "boolean",
             "default": false
           },
+          "cancelledAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "cancelReason": {
+            "type": "string",
+            "nullable": true
+          },
           "id": {
             "type": "string",
             "format": "uuid"
@@ -10838,6 +10959,8 @@
           "startsAt",
           "endsAt",
           "location",
+          "cancelledAt",
+          "cancelReason",
           "id"
         ]
       },
@@ -10946,6 +11069,15 @@
       "MeRegistrationResponseDto": {
         "type": "object",
         "properties": {
+          "entityCancelledAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "cancelReason": {
+            "type": "string",
+            "nullable": true
+          },
           "id": {
             "type": "string",
             "format": "uuid"
@@ -11122,6 +11254,15 @@
             "type": "string",
             "maxLength": 5000
           },
+          "cancelledAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "cancelReason": {
+            "type": "string",
+            "nullable": true
+          },
           "id": {
             "type": "string",
             "format": "uuid"
@@ -11131,6 +11272,8 @@
           "startsAt",
           "location",
           "capacity",
+          "cancelledAt",
+          "cancelReason",
           "id"
         ]
       },
@@ -11154,7 +11297,9 @@
           "EventCancelled",
           "OpenDayRegistered",
           "EventRescheduled",
-          "OpenDayRescheduled"
+          "OpenDayRescheduled",
+          "EventSessionCancelled",
+          "OpenDayCancelled"
         ]
       },
       "NotificationResponseDto": {
@@ -11253,7 +11398,7 @@
         "type": "object",
         "properties": {
           "items": {
-            "maxItems": 18,
+            "maxItems": 20,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/SettingDto"
@@ -12066,6 +12211,19 @@
             "default": false
           }
         }
+      },
+      "MeetingCancelDto": {
+        "type": "object",
+        "properties": {
+          "cancelReason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "cancelReason"
+        ]
       },
       "AdminEventRegistrationDto": {
         "type": "object",

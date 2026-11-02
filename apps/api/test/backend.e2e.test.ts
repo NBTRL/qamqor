@@ -935,7 +935,7 @@ describe('Контент, статистика и инфраструктура',
     });
     const notifications = app.get(NotificationService);
     await prisma.$transaction((tx) =>
-      notifications.notify(tx, [user.id], 'EventRegistered', {
+      notifications.notify(tx, [user.id], 'ApplicationStatusChanged', {
         title: 'Проверка настоящего воркера',
       }),
     );

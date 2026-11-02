@@ -115,3 +115,20 @@ it('explains event access cancellation without implying that the event itself wa
     'Причина:',
   );
 });
+
+it.each(['EventSessionCancelled', 'OpenDayCancelled'] as const)(
+  '%s distinguishes meeting cancellation and includes its reason',
+  (type) => {
+    const message = notificationMessage(
+      type,
+      { eventId: 'event', sessionId: 'day', title: 'Встреча', reason: 'Непогода' },
+      origin,
+    );
+    expect(message.subject).toMatch(/отменен/);
+    expect(message.subject).not.toContain('Запись');
+    expect(message.text).toContain('Причина: Непогода');
+    expect(message.text).toContain(
+      type === 'OpenDayCancelled' ? '/cabinet/registrations' : '/events/event',
+    );
+  },
+);

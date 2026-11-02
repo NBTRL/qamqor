@@ -44,6 +44,8 @@ export function notificationMessage(
     OpenDayReminder: 'Напоминание о Дне открытых дверей',
     EventRegistered: 'Вы записаны на мероприятие',
     EventCancelled: 'Запись на мероприятие отменена',
+    EventSessionCancelled: 'Мероприятие отменено',
+    OpenDayCancelled: 'День открытых дверей отменен',
     EventRescheduled: 'Изменились время или место мероприятия',
     OpenDayRegistered: 'Вы записаны на День открытых дверей',
     OpenDayRescheduled: 'Изменились время или место Дня открытых дверей',
@@ -51,7 +53,9 @@ export function notificationMessage(
   const link =
     type === 'ApplicationStatusChanged'
       ? '/cabinet/application'
-      : type === 'OpenDayRegistered' || type === 'OpenDayReminder' || type === 'OpenDayRescheduled'
+      : ['OpenDayRegistered', 'OpenDayReminder', 'OpenDayRescheduled', 'OpenDayCancelled'].includes(
+            type,
+          )
         ? '/cabinet/registrations'
         : typeof data.tripId === 'string'
           ? `/trips/${data.tripId}`
@@ -60,7 +64,9 @@ export function notificationMessage(
             : '/cabinet/notifications';
   const status = typeof data.statusLabel === 'string' ? `\nНовый статус: ${data.statusLabel}.` : '';
   const reason =
-    type === 'EventCancelled' && typeof data.reason === 'string' && data.reason
+    ['EventCancelled', 'EventSessionCancelled', 'OpenDayCancelled'].includes(type) &&
+    typeof data.reason === 'string' &&
+    data.reason
       ? `\nПричина: ${data.reason}`
       : '';
   return {

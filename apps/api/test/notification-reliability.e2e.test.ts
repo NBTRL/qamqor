@@ -57,7 +57,13 @@ async function user(role: 'VOLUNTEER' | 'ADMIN' | 'CANDIDATE' = 'VOLUNTEER') {
 const notice = async (member: Actor) => {
   const dedupe = randomUUID();
   await prisma.$transaction((tx) =>
-    notifications.notify(tx, [member.id], 'EventRegistered', { title: 'Тестовое событие' }, dedupe),
+    notifications.notify(
+      tx,
+      [member.id],
+      'ApplicationStatusChanged',
+      { title: 'Тестовое событие' },
+      dedupe,
+    ),
   );
   return prisma.notification.findFirstOrThrow({
     where: { dedupeKey: `${dedupe}:${member.id}:TELEGRAM` },
@@ -70,7 +76,7 @@ describe('Telegram recovery', () => {
     async (action) => {
       const member = await user();
       await prisma.notificationSetting.create({
-        data: { userId: member.id, type: 'EventRegistered', telegram: true, email: false },
+        data: { userId: member.id, type: 'ApplicationStatusChanged', telegram: true, email: false },
       });
       const first = await notice(member);
       const send = vi
@@ -128,13 +134,15 @@ describe('Telegram recovery', () => {
       (await prisma.user.findUniqueOrThrow({ where: { id: member.id } })).botBlockedAt,
     ).not.toBeNull();
     await prisma.notificationSetting.create({
-      data: { userId: member.id, type: 'EventRegistered', telegram: false, email: false },
+      data: { userId: member.id, type: 'ApplicationStatusChanged', telegram: false, email: false },
     });
     await bot.handle(bot.membership(Number(member.telegramId), false));
     expect(
       (await prisma.user.findUniqueOrThrow({ where: { id: member.id } })).botBlockedAt,
     ).toBeNull();
-    await prisma.$transaction((tx) => notifications.notify(tx, [member.id], 'EventRegistered', {}));
+    await prisma.$transaction((tx) =>
+      notifications.notify(tx, [member.id], 'ApplicationStatusChanged', {}),
+    );
     expect(
       (await prisma.notification.findMany({ where: { userId: member.id } })).map((r) => r.channel),
     ).toEqual(['IN_APP']);
@@ -186,7 +194,7 @@ describe('Outbox fairness with PostgreSQL and Redis', () => {
     const old = Array.from({ length: 201 }, () => ({
       id: randomUUID(),
       userId: member.id,
-      type: 'EventRegistered',
+      type: 'ApplicationStatusChanged',
       payload: {},
       channel: 'TELEGRAM' as const,
       createdAt: new Date('2000-01-01'),
@@ -195,7 +203,7 @@ describe('Outbox fairness with PostgreSQL and Redis', () => {
     const newer = (['TELEGRAM', 'EMAIL'] as const).map((channel) => ({
       id: randomUUID(),
       userId: member.id,
-      type: 'EventRegistered',
+      type: 'ApplicationStatusChanged',
       payload: {},
       channel,
       createdAt: new Date('2001-01-01'),
