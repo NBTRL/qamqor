@@ -21,10 +21,12 @@ import {
   type UserRole,
   helpAreaLabels,
   weekdayLabels,
+  questionnaireSchema,
 } from '@club/shared';
 import { api, result, type Model } from '@/lib/api/client';
 import { resources } from '@/lib/resources';
 import { date } from '@/lib/format';
+import { useNow } from '@/lib/use-now';
 import { schemaFor } from '@/lib/form-schema';
 import { Button, ErrorNotice, Empty, Field, Modal, Loading } from './ui';
 import { DataTable } from './data-table';
@@ -113,7 +115,7 @@ export function AdminResource({ resourceKey }: { resourceKey: keyof typeof resou
   const [edit, setEdit] = useState<Row | null>(null);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<Row | null>(null);
-  const [registrations, setRegistrations] = useState<string | null>(null);
+  const [registrations, setRegistrations] = useState<{ id: string; startsAt: string } | null>(null);
   const [filter, setFilter] = useState('');
   const cache = useQueryClient();
   const refresh = () => {
@@ -139,6 +141,13 @@ export function AdminResource({ resourceKey }: { resourceKey: keyof typeof resou
     <>
       <AdminNav />
       <h1>{resource.title}</h1>
+      {resourceKey === 'users' && (
+        <p className="notice">
+          Администратор может назначить роль волонтера независимо от анкеты и ДОД. Это отдельное
+          административное решение: оно фиксируется в журнале и не отмечает этапы вступления
+          пройденными.
+        </p>
+      )}
       <div className="actions">
         {'create' in resource && (
           <Button onClick={() => setCreating(true)}>
@@ -238,7 +247,12 @@ export function AdminResource({ resourceKey }: { resourceKey: keyof typeof resou
                   </Button>
                 )}
                 {['open-days', 'events'].includes(resourceKey) && (
-                  <Button variant="secondary" onClick={() => setRegistrations(rowId(row))}>
+                  <Button
+                    variant="secondary"
+                    onClick={() =>
+                      setRegistrations({ id: rowId(row), startsAt: String(row.startsAt) })
+                    }
+                  >
                     Участники
                   </Button>
                 )}
@@ -289,14 +303,25 @@ export function AdminResource({ resourceKey }: { resourceKey: keyof typeof resou
         {registrations && (
           <AdminParticipants
             kind={resourceKey === 'events' ? 'EVENT' : 'OPEN_DAY'}
-            id={registrations}
+            id={registrations.id}
+            startsAt={registrations.startsAt}
           />
         )}
       </Modal>
     </>
   );
 }
-function AdminParticipants({ kind, id }: { kind: 'EVENT' | 'OPEN_DAY'; id: string }) {
+function AdminParticipants({
+  kind,
+  id,
+  startsAt,
+}: {
+  kind: 'EVENT' | 'OPEN_DAY';
+  id: string;
+  startsAt: string;
+}) {
+  const now = useNow();
+  const future = new Date(startsAt).getTime() > now;
   const cache = useQueryClient();
   const mutation = useMutation({
     mutationFn: async ({
@@ -361,12 +386,16 @@ function AdminParticipants({ kind, id }: { kind: 'EVENT' | 'OPEN_DAY'; id: strin
               'attended' in row ? (
                 <Button
                   variant="secondary"
-                  disabled={mutation.isPending || !!row.cancelledAt}
+                  disabled={mutation.isPending || !!row.cancelledAt || (!row.attended && future)}
                   onClick={() =>
                     mutation.mutate({ registrationId: row.id, attended: !row.attended })
                   }
                 >
-                  {row.attended ? 'Снять отметку' : 'Отметить посещение'}
+                  {row.attended
+                    ? 'Снять отметку'
+                    : future
+                      ? 'ДОД еще не начался'
+                      : 'Отметить посещение'}
                 </Button>
               ) : (
                 <div className="actions">
@@ -467,29 +496,33 @@ export function Applications() {
         </Button>
       </div>
       <Modal open={!!selected} onClose={() => setSelected(null)} title="Анкета кандидата">
-        {selected && <ApplicationDecision id={selected} />}
+        {selected && <ApplicationDecision key={selected} id={selected} />}
       </Modal>
     </>
   );
 }
-function ApplicationDecision({ id }: { id: string }) {
+export function ApplicationDecision({ id }: { id: string }) {
   const cache = useQueryClient();
   const query = useQuery({
     queryKey: ['admin-application', id],
     queryFn: () => result(api.GET('/api/v1/admin/applications/{id}', { params: { path: { id } } })),
   });
   const [comment, setComment] = useState('');
+  const [adminOverride, setAdminOverride] = useState(false);
   const mutation = useMutation({
     mutationFn: (status: ApplicationStatus) =>
       result(
         api.POST('/api/v1/admin/applications/{id}/status', {
           params: { path: { id } },
-          body: { status, comment },
+          body: { status, comment, ...(adminOverride ? { adminOverride: true } : {}) },
         }),
       ),
     onSuccess: () => {
       void cache.invalidateQueries({ queryKey: ['applications'] });
       void cache.invalidateQueries({ queryKey: ['admin-application', id] });
+      void cache.invalidateQueries({ queryKey: ['table'] });
+      setAdminOverride(false);
+      setComment('');
     },
   });
   const row = query.data;
@@ -551,32 +584,59 @@ function ApplicationDecision({ id }: { id: string }) {
           </li>
         ))}
       </ol>
-      <Field label="Комментарий администратора">
+      {row.status !== ApplicationStatus.ACCEPTED && (
+        <label className="checkbox">
+          <input
+            type="checkbox"
+            checked={adminOverride}
+            disabled={mutation.isPending}
+            onChange={(event) => setAdminOverride(event.target.checked)}
+          />
+          Принять как исключение по решению администратора
+        </label>
+      )}
+      {adminOverride && (
+        <p className="notice">
+          Анкета и ДОД не обязательны для этого решения. Посещение ДОД не будет отмечено. Укажите
+          причину: она сохранится в истории заявки и журнале.
+        </p>
+      )}
+      <Field label={adminOverride ? 'Причина исключения' : 'Комментарий администратора'}>
         <textarea
           value={comment}
+          disabled={mutation.isPending}
           maxLength={5000}
           onChange={(event) => setComment(event.target.value)}
         />
       </Field>
       <div className="actions">
-        {applicationStatusTransitions[row.status]
+        {(adminOverride ? [ApplicationStatus.ACCEPTED] : applicationStatusTransitions[row.status])
           .filter((status) => status !== ApplicationStatus.QUESTIONNAIRE_DONE)
           .map((status) => (
             <Button
               key={status}
-              disabled={mutation.isPending}
+              disabled={
+                mutation.isPending ||
+                (adminOverride
+                  ? !comment.trim()
+                  : (status === ApplicationStatus.ACCEPTED ||
+                      status === ApplicationStatus.INTERVIEW) &&
+                    (!row.hasOpenDayAttended ||
+                      !questionnaireSchema.safeParse(row.questionnaire).success))
+              }
               onClick={() => mutation.mutate(status)}
             >
-              {applicationStatusLabels[status]}
+              {adminOverride ? 'Принять как исключение' : applicationStatusLabels[status]}
             </Button>
           ))}
       </div>
-      {!row.hasOpenDayAttended && (
-        <p className="notice">
-          Для собеседования и принятия нужна заполненная анкета и подтвержденное посещение Дня
-          открытых дверей.
-        </p>
-      )}
+      {!adminOverride &&
+        (!row.hasOpenDayAttended || !questionnaireSchema.safeParse(row.questionnaire).success) && (
+          <p className="notice">
+            Для собеседования и принятия нужна заполненная анкета и подтвержденное посещение Дня
+            открытых дверей.
+          </p>
+        )}
       <ErrorNotice error={mutation.error} />
     </>
   );

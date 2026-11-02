@@ -17,20 +17,28 @@ import { pageArgs, pageResult } from '../common/query.dto.js';
 import { NotificationService } from '../notifications/notification.service.js';
 import { assertDecision } from './rules.js';
 import type { ApplicationDecisionDto, ApplicationQueryDto, QuestionnaireDto } from './club.dto.js';
-const applicationInclude = {
-  user: {
-    select: {
-      id: true,
-      fullName: true,
-      phone: true,
-      email: true,
-      openDayRegistrations: { where: { attended: true }, select: { id: true }, take: 1 },
+// Build the time predicate per request, never at process startup.
+const completedOpenDayWhere = (now = new Date()) =>
+  ({
+    attended: true,
+    cancelledAt: null,
+    session: { startsAt: { lte: now } },
+  }) satisfies Prisma.OpenDayRegistrationWhereInput;
+const applicationInclude = () =>
+  ({
+    user: {
+      select: {
+        id: true,
+        fullName: true,
+        phone: true,
+        email: true,
+        openDayRegistrations: { where: completedOpenDayWhere(), select: { id: true }, take: 1 },
+      },
     },
-  },
-  history: { orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] },
-} satisfies Prisma.CandidateApplicationInclude;
+    history: { orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] },
+  }) satisfies Prisma.CandidateApplicationInclude;
 function adminApplication(
-  row: Prisma.CandidateApplicationGetPayload<{ include: typeof applicationInclude }>,
+  row: Prisma.CandidateApplicationGetPayload<{ include: ReturnType<typeof applicationInclude> }>,
 ) {
   const { openDayRegistrations, ...user } = row.user;
   return { ...row, user, hasOpenDayAttended: openDayRegistrations.length > 0 };
@@ -41,7 +49,7 @@ export class ApplicationsService {
   async detail(id: string) {
     const row = await this.prisma.candidateApplication.findUniqueOrThrow({
       where: { id },
-      include: applicationInclude,
+      include: applicationInclude(),
     });
     return adminApplication(row);
   }
@@ -63,7 +71,7 @@ export class ApplicationsService {
       questionnaire: row.questionnaire,
       hasOpenDayAttended:
         (await this.prisma.openDayRegistration.count({
-          where: { userId: actor.id, attended: true },
+          where: { userId: actor.id, ...completedOpenDayWhere() },
         })) > 0,
       history: row.history.map((item) => ({
         fromStatus: item.fromStatus,
@@ -130,7 +138,7 @@ export class ApplicationsService {
     const [items, total] = await Promise.all([
       this.prisma.candidateApplication.findMany({
         where,
-        include: applicationInclude,
+        include: applicationInclude(),
         orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
         ...pageArgs(query),
       }),
@@ -139,6 +147,11 @@ export class ApplicationsService {
     return pageResult(items.map(adminApplication), total, query);
   }
   async decision(actor: Actor, id: string, dto: ApplicationDecisionDto) {
+    if (actor.role !== 'ADMIN') throw new ApiException(ErrorCode.FORBIDDEN);
+    if (dto.adminOverride && (dto.status !== 'ACCEPTED' || !dto.comment?.trim()))
+      throw new ApiException(ErrorCode.VALIDATION_ERROR, {
+        reason: 'Для принятия в порядке исключения укажите причину.',
+      });
     return retryTransaction(() =>
       this.prisma.$transaction(async (tx) => {
         const initial = await tx.candidateApplication.findUnique({ where: { id } });
@@ -152,22 +165,43 @@ export class ApplicationsService {
         if (row.user.anonymizedAt || row.user.isBlocked)
           throw new ApiException(ErrorCode.ACCOUNT_BLOCKED);
         const attended =
-          (await tx.openDayRegistration.count({ where: { userId: row.userId, attended: true } })) >
-          0;
-        assertDecision(dto.status, row.questionnaire, attended, dto.comment);
-        this.audit.assertTransition('ApplicationStatus', row.status, dto.status);
-        await this.audit.transition(
-          tx,
-          actor.id,
-          'CandidateApplication',
-          id,
-          'ApplicationStatus',
-          row.status,
-          dto.status,
-        );
+          (await tx.openDayRegistration.count({
+            where: { userId: row.userId, ...completedOpenDayWhere() },
+          })) > 0;
+        const comment = dto.adminOverride
+          ? `Принят администратором в порядке исключения. ${dto.comment!.trim()}`
+          : dto.comment;
+        if (dto.adminOverride) {
+          if (row.status === 'ACCEPTED') throw new ApiException(ErrorCode.INVALID_TRANSITION);
+          await this.audit.record(
+            tx,
+            actor.id,
+            'APPLICATION_ACCEPTED_BY_ADMIN',
+            'CandidateApplication',
+            id,
+            {
+              from: row.status,
+              to: dto.status,
+              reason: dto.comment!.trim(),
+              questionnaireCompleted: questionnaireSchema.safeParse(row.questionnaire).success,
+              hasOpenDayAttended: attended,
+            },
+          );
+        } else {
+          assertDecision(dto.status, row.questionnaire, attended, dto.comment);
+          await this.audit.transition(
+            tx,
+            actor.id,
+            'CandidateApplication',
+            id,
+            'ApplicationStatus',
+            row.status,
+            dto.status,
+          );
+        }
         await tx.candidateApplication.update({
           where: { id },
-          data: { status: dto.status, adminComment: dto.comment, reviewedById: actor.id },
+          data: { status: dto.status, adminComment: comment, reviewedById: actor.id },
         });
         await tx.applicationHistory.create({
           data: {
@@ -175,7 +209,7 @@ export class ApplicationsService {
             actorId: actor.id,
             fromStatus: row.status,
             toStatus: dto.status,
-            comment: dto.comment,
+            comment,
           },
         });
         if (dto.status === 'ACCEPTED' && row.user.role === 'CANDIDATE') {
@@ -213,7 +247,7 @@ export class ApplicationsService {
         return adminApplication(
           await tx.candidateApplication.findUniqueOrThrow({
             where: { id },
-            include: applicationInclude,
+            include: applicationInclude(),
           }),
         );
       }),

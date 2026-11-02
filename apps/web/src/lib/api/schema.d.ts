@@ -2213,6 +2213,8 @@ export interface components {
             };
         };
         ApplicationDecisionDto: {
+            /** @description Явное принятие администратором без обязательных этапов; только ACCEPTED, с причиной в comment. */
+            adminOverride?: boolean;
             /** @enum {string} */
             status: "NEW" | "QUESTIONNAIRE_DONE" | "INTERVIEW" | "ACCEPTED" | "REJECTED";
             comment?: string;

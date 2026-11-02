@@ -67,7 +67,10 @@ export class UsersService {
           role: dto.role ?? 'CANDIDATE',
         },
       });
-      await this.audit.record(tx, actor.id, 'CREATED', 'User', user.id, { role: user.role });
+      await this.audit.record(tx, actor.id, 'CREATED', 'User', user.id, {
+        role: user.role,
+        ...(user.role === 'VOLUNTEER' ? { admissionMode: 'ADMIN_DIRECT' } : {}),
+      });
       return user;
     });
     return this.project(row);
@@ -93,6 +96,7 @@ export class UsersService {
           await this.audit.record(tx, actor.id, 'ROLE_CHANGED', 'User', id, {
             from: user.role,
             to: dto.role,
+            ...(dto.role === 'VOLUNTEER' ? { admissionMode: 'ADMIN_DIRECT' } : {}),
           });
         }
         if (dto.isBlocked)

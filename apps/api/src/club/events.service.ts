@@ -436,6 +436,11 @@ export class OpenDaysService {
           session.capacity
       )
         throw new ApiException(ErrorCode.OPEN_DAY_FULL);
+      if (future && attended)
+        throw new ApiException(ErrorCode.VALIDATION_ERROR, {
+          reason:
+            'Посещение можно отметить только после начала ДОД. Для приема без ДОД используйте принятие в порядке исключения или назначение роли.',
+        });
       const row = await tx.openDayRegistration.upsert({
         where: { sessionId_userId: { sessionId, userId } },
         create: { sessionId, userId, attended },

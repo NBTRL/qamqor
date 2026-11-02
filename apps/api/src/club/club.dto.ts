@@ -308,6 +308,13 @@ export class QuestionnaireDto {
   @ApiProperty({ enum: [true] }) @Allow() rulesAccepted!: true;
 }
 export class ApplicationDecisionDto {
+  @ApiPropertyOptional({
+    description:
+      'Явное принятие администратором без обязательных этапов; только ACCEPTED, с причиной в comment.',
+  })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsBoolean()
+  adminOverride?: boolean;
   @ApiProperty({ enum: ApplicationStatus }) @IsEnum(ApplicationStatus) status!: ApplicationStatus;
   @ApiPropertyOptional({ maxLength: 5000 })
   @ValidateIf((_object, value) => value !== undefined)

@@ -11676,6 +11676,10 @@
       "ApplicationDecisionDto": {
         "type": "object",
         "properties": {
+          "adminOverride": {
+            "type": "boolean",
+            "description": "Явное принятие администратором без обязательных этапов; только ACCEPTED, с причиной в comment."
+          },
           "status": {
             "type": "string",
             "enum": [

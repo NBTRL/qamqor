@@ -78,11 +78,12 @@ describe('Shared administrative open-day attendance', () => {
   );
 
   it.each(['POST', 'PATCH'] as const)(
-    '%s preserves early attendance for an already reserved place',
+    '%s rejects early attendance even for an already reserved place',
     async (mode) => {
       const f = fixture({ full: true, cancelled: false });
-      await expect(f.mark(mode)).resolves.toMatchObject({ attended: true, cancelledAt: null });
-      expect(f.record).toHaveBeenCalledOnce();
+      await expect(f.mark(mode)).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+      expect(f.upsert).not.toHaveBeenCalled();
+      expect(f.record).not.toHaveBeenCalled();
     },
   );
 
@@ -98,7 +99,7 @@ describe('Shared administrative open-day attendance', () => {
   });
 
   it('locks the participant before the session and reads current eligibility after both locks', async () => {
-    const f = fixture();
+    const f = fixture({ historical: true });
     await f.mark('POST');
     expect(f.operations[0]).toContain('FROM "users"');
     expect(f.operations[0]).toContain('FOR NO KEY UPDATE');
