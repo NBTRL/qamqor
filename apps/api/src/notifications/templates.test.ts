@@ -84,3 +84,18 @@ describe('Notification destinations', () => {
     expect(message.subject).toBeTruthy();
   });
 });
+
+it('explains event access cancellation without implying that the event itself was cancelled', () => {
+  const reason = 'Организатор изменил условия: мероприятие доступно только волонтерам клуба.';
+  const message = notificationMessage(
+    'EventCancelled',
+    { title: 'Семинар', eventId: 'seminar', reason },
+    origin,
+  );
+  expect(message.subject).toBe('Запись на мероприятие отменена');
+  expect(message.text).toContain(`Причина: ${reason}`);
+  expect(message.text).toContain(`${origin}/events/seminar`);
+  expect(notificationMessage('EventCancelled', { reason: null }, origin).text).not.toContain(
+    'Причина:',
+  );
+});

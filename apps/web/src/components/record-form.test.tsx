@@ -24,6 +24,9 @@ describe('Event record form validation', () => {
         />
       </QueryClientProvider>,
     );
+    expect(
+      screen.getByText(/активные записи кандидатов будут отменены с уведомлением/),
+    ).toBeInTheDocument();
     const capacity = screen.getByLabelText('Количество мест');
     expect(capacity).toHaveAttribute('min', '1');
     expect(capacity).toHaveAttribute('max', '1000');

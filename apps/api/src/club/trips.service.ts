@@ -179,12 +179,14 @@ export class TripsService {
           !['DRAFT', 'OPEN', 'CLOSED'].includes(trip.status)
         )
           throw new ApiException(ErrorCode.INVALID_TRANSITION);
-        if (
-          dto.capacity !== undefined &&
-          dto.capacity <
-            (await tx.tripRegistration.count({ where: { tripId: id, status: 'CONFIRMED' } }))
-        )
-          throw new ApiException(ErrorCode.TRIP_FULL);
+        if (dto.capacity !== undefined) {
+          const occupied = await occupiedTripPlaces(tx, id);
+          if (dto.capacity < occupied)
+            throw new ApiException(ErrorCode.TRIP_FULL, {
+              occupiedPlaces: occupied,
+              reason: `Нельзя установить меньше ${occupied} мест: учитываются подтвержденные участники и действующие приглашения, ожидающие подтверждения. Сначала отмените лишние записи.`,
+            });
+        }
         const updated = await tx.trip.update({ where: { id }, data: { ...dto, startsAt, endsAt } });
         await this.audit.record(tx, actor.id, 'UPDATED', 'Trip', id, { fields: Object.keys(dto) });
         if (
