@@ -534,8 +534,9 @@ describe('Capacity changes respect reserved trip invitations', () => {
     await f.register(trip.id, f.admin.id, 'PENDING');
     for (const member of [await user('CANDIDATE'), await user('VOLUNTEER', true)])
       await f.register(trip.id, member.id, 'PENDING');
-    const anonymized = await user();
-    await prisma.user.update({ where: { id: anonymized.id }, data: { anonymizedAt: new Date() } });
+    const anonymized = await prisma.user.create({
+      data: { fullName: 'Удаленный пользователь', anonymizedAt: new Date(), role: 'VOLUNTEER' },
+    });
     await f.register(trip.id, anonymized.id, 'PENDING');
     for (const status of ['WAITLIST', 'ATTENDED', 'NO_SHOW', 'CANCELLED', 'REJECTED'] as const)
       await f.register(trip.id, (await user()).id, status);
