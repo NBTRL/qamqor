@@ -208,9 +208,13 @@ export function RecordForm({
                 hint={
                   schemaName === 'MediaItemWriteDto' && key === 'url'
                     ? 'При смене типа укажите ссылку заново.'
-                    : !required
-                      ? 'Необязательно'
-                      : undefined
+                    : key === 'volunteersOnly'
+                      ? 'При сохранении будущего мероприятия активные записи кандидатов будут отменены с уведомлением. История участия сохранится.'
+                      : key === 'capacity' && ['TripCreateDto', 'TripPatchDto'].includes(schemaName)
+                        ? 'Места занимают подтвержденные участники и действующие приглашения, ожидающие подтверждения. Для уменьшения вместимости сначала отмените лишние записи.'
+                        : !required
+                          ? 'Необязательно'
+                          : undefined
                 }
               >
                 {key === 'bodyHtml' ? (

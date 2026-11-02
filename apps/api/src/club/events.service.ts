@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { ErrorCode, EventType, RegistrationStatus } from '@club/shared';
-import { Prisma } from '../generated/prisma/client.js';
+import { Prisma, type Event } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { AuditService } from '../common/audit.service.js';
+import { AuditService, type Tx } from '../common/audit.service.js';
 import { lockActiveUser } from '../common/active-user.js';
 import { retryTransaction } from '../common/transaction-retry.js';
 import { ApiException } from '../common/api-exception.js';
@@ -63,14 +63,6 @@ export class EventsService {
         const startsAt = new Date(merged.startsAt!),
           endsAt = new Date(merged.endsAt!);
         assertDates(startsAt, endsAt);
-        if (
-          id &&
-          merged.capacity !== null &&
-          merged.capacity !== undefined &&
-          merged.capacity <
-            (await tx.eventRegistration.count({ where: { eventId: id, status: 'CONFIRMED' } }))
-        )
-          throw new ApiException(ErrorCode.EVENT_FULL);
         const data = { ...dto, startsAt, endsAt };
         const row = id
           ? await tx.event.update({ where: { id }, data })
@@ -84,6 +76,14 @@ export class EventsService {
                 createdById: actor.id,
               },
             });
+        // Reconcile access before checking capacity; failures roll back the entire edit/outbox.
+        if (current) await this.cancelCandidateRegistrations(tx, actor.id, row);
+        if (
+          row.capacity !== null &&
+          row.capacity <
+            (await tx.eventRegistration.count({ where: { eventId: row.id, status: 'CONFIRMED' } }))
+        )
+          throw new ApiException(ErrorCode.EVENT_FULL);
         await this.audit.record(tx, actor.id, id ? 'UPDATED' : 'CREATED', 'Event', row.id, {
           fields: Object.keys(dto),
         });
@@ -120,6 +120,46 @@ export class EventsService {
         }
         return row;
       }),
+    );
+  }
+  /** The caller holds the Event lock; repeat saves also reconcile legacy invalid bookings. */
+  private async cancelCandidateRegistrations(tx: Tx, actorId: string, event: Event) {
+    if (!event.volunteersOnly || event.startsAt <= new Date()) return;
+    const registrations = await tx.eventRegistration.findMany({
+      where: {
+        eventId: event.id,
+        status: { in: ['PENDING', 'CONFIRMED', 'WAITLIST'] },
+        user: { role: 'CANDIDATE' },
+      },
+      orderBy: { id: 'asc' },
+    });
+    if (!registrations.length) return;
+    const reason = 'Организатор изменил условия: мероприятие доступно только волонтерам клуба.';
+    for (const registration of registrations) {
+      this.audit.assertTransition('RegistrationStatus', registration.status, 'CANCELLED');
+      await tx.eventRegistration.update({
+        where: { id: registration.id },
+        data: { status: 'CANCELLED' },
+      });
+      await this.audit.record(tx, actorId, 'STATUS_CHANGED', 'EventRegistration', registration.id, {
+        from: registration.status,
+        to: 'CANCELLED',
+        reason: 'VOLUNTEERS_ONLY',
+        eventId: event.id,
+      });
+    }
+    await this.notifications.notify(
+      tx,
+      registrations.map((registration) => registration.userId),
+      'EventCancelled',
+      {
+        eventId: event.id,
+        title: event.title,
+        startsAt: event.startsAt.toISOString(),
+        reason,
+        reasonCode: 'VOLUNTEERS_ONLY',
+        message: `Запись на «${event.title}» отменена. ${reason}`,
+      },
     );
   }
   async register(actor: Actor, id: string) {
@@ -196,6 +236,11 @@ export class EventsService {
         include: { event: true },
       });
       this.audit.assertTransition('RegistrationStatus', row.status, status);
+      if (status === 'CONFIRMED' || status === 'PENDING') {
+        const user = await tx.user.findUniqueOrThrow({ where: { id: row.userId } });
+        if (user.isBlocked || user.anonymizedAt) throw new ApiException(ErrorCode.ACCOUNT_BLOCKED);
+        assertEventRegistration(user.role, row.event.volunteersOnly);
+      }
       if (
         (status === 'ATTENDED' || status === 'NO_SHOW') &&
         row.event.startsAt.getTime() > Date.now()

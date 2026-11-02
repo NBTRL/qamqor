@@ -53,8 +53,12 @@ export function notificationMessage(
             ? `/events/${data.eventId}`
             : '/cabinet/notifications';
   const status = typeof data.statusLabel === 'string' ? `\nНовый статус: ${data.statusLabel}.` : '';
+  const reason =
+    type === 'EventCancelled' && typeof data.reason === 'string' && data.reason
+      ? `\nПричина: ${data.reason}`
+      : '';
   return {
     subject: subjects[type],
-    text: `Клуб волонтеров\n\n${subjects[type]}.\n${title}${date ? `\n${date} (Москва)` : ''}${end ? `\nОкончание: ${end} (Москва)` : ''}${location}${status}\n\nПодробнее: ${webUrl}${link}`,
+    text: `Клуб волонтеров\n\n${subjects[type]}.\n${title}${date ? `\n${date} (Москва)` : ''}${end ? `\nОкончание: ${end} (Москва)` : ''}${location}${status}${reason}\n\nПодробнее: ${webUrl}${link}`,
   };
 }
