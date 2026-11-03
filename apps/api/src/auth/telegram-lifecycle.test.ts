@@ -30,6 +30,7 @@ describe('Telegram lifecycle in deployment roles', () => {
       crypto: { random: () => 'lock' },
     }) as TelegramService;
     await expect(service.handleUpdate({ update_id: 1 })).resolves.toEqual({ ok: true });
+    expect(init.mock.calls[0]?.[0]).toBeInstanceOf(AbortSignal);
     expect(handleUpdate).toHaveBeenCalledOnce();
     expect(client.set).toHaveBeenCalledWith('telegram-update-done:1', '1', 'EX', 86400);
     client.set.mockClear();

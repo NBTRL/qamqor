@@ -257,7 +257,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     if (!(await this.redis.client.set(lockKey, lock, 'PX', 60000, 'NX')))
       throw new ApiException(ErrorCode.RATE_LIMITED);
     try {
-      await this.bot.init();
+      await this.bot.init(AbortSignal.timeout(10000));
       await this.bot.handleUpdate(update);
       await this.redis.client.set(doneKey, '1', 'EX', 86400);
     } finally {
