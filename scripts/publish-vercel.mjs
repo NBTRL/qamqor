@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, rmSync, rmdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -22,9 +22,9 @@ export async function publish({
   runRetention(api, { apply: !dryRun, log });
   if (dryRun) return { dryRun: true, sha };
   const directory = mkdtempSync(join(tmpdir(), 'qamqor-release-'));
+  const input = join(directory, 'deployment.json');
   let deployment;
   try {
-    const input = join(directory, 'deployment.json');
     writeFileSync(
       input,
       JSON.stringify({
@@ -42,7 +42,8 @@ export async function publish({
     );
     deployment = api(`/v13/deployments?teamId=${teamId}`, 'POST', input);
   } finally {
-    rmSync(directory, { recursive: true, force: true });
+    rmSync(input, { force: true });
+    rmdirSync(directory);
   }
   if (!deployment.id?.startsWith('dpl_')) throw new Error('Unexpected deployment response');
   log(JSON.stringify({ deployment: deployment.id, url: deployment.url, sha }));
