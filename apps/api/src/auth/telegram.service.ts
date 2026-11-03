@@ -231,10 +231,8 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
   }
   async onModuleInit(): Promise<void> {
     if (this.runtime.offline || !this.runtime.telegram || !this.bot) return;
-    if (this.runtime.telegramSetup === false) {
-      await this.bot.init();
-      return;
-    }
+    // HTTP readiness must not depend on Telegram's network availability.
+    if (this.runtime.telegramSetup === false) return;
     await this.setup();
     if (this.env.TELEGRAM_MODE === 'polling')
       this.polling = this.bot.start({ allowed_updates: allowedUpdates }).catch(() => {
@@ -259,6 +257,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     if (!(await this.redis.client.set(lockKey, lock, 'PX', 60000, 'NX')))
       throw new ApiException(ErrorCode.RATE_LIMITED);
     try {
+      await this.bot.init();
       await this.bot.handleUpdate(update);
       await this.redis.client.set(doneKey, '1', 'EX', 86400);
     } finally {

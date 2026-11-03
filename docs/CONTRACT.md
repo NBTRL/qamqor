@@ -436,7 +436,7 @@ pnpm install генерирует отсутствующий локальный 
 
 Helmet, CORS, Redis throttler, глобальные guards и safe pino-логи включены. Приложение доверяет только loopback proxy; внешний reverse proxy должен перезаписывать X-Forwarded-For и исключать чувствительные поля из логов. Graceful shutdown прекращает timers/polling, дожидается активных BullMQ workers и закрывает БД, Redis, SMTP, S3.
 
-Локальный `apps/api/Dockerfile` запускает API от непривилегированного пользователя и содержит liveness healthcheck; миграции для него применяются отдельным шагом перед запуском. Vercel использует корневой `Dockerfile.api`: HTTP entrypoint `start-vercel.js` при `VERCEL_ENV=production|preview` выполняет `prisma migrate deploy` и только затем запускает API без фоновых workers. Отдельный daemon запускает `worker.js` и сам миграции не применяет. Runtime включает Prisma Client, CLI и миграции; корневой Dockerfile также упаковывает нативный schema engine. Детали — в [VERCEL.md](VERCEL.md).
+Локальный `apps/api/Dockerfile` запускает API от непривилегированного пользователя и содержит liveness healthcheck; миграции для него применяются отдельным шагом перед запуском. Vercel использует корневой `Dockerfile.api`: Обязательный этап сборки web при `VERCEL_ENV=production|preview` выполняет `prisma migrate deploy` до публикации всех сервисов. HTTP entrypoint `start-vercel.js` запускает API без миграций и фоновых workers. Отдельный daemon запускает `worker.js` и сам миграции не применяет. Runtime включает Prisma Client, CLI и миграции; корневой Dockerfile также упаковывает нативный schema engine. Детали — в [VERCEL.md](VERCEL.md).
 
 ## 11. Анонимизация и изменение контракта
 

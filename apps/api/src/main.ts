@@ -6,6 +6,9 @@ import { configureApp, setupSwagger } from './openapi.js';
 import { Logger } from 'nestjs-pino';
 
 async function bootstrap(): Promise<void> {
+  console.log(
+    JSON.stringify({ event: 'API_BOOTSTRAP', elapsedMs: Math.round(process.uptime() * 1000) }),
+  );
   const environment = getEnvironment();
   const app = await NestFactory.create(
     AppModule.configure(
@@ -30,6 +33,9 @@ async function bootstrap(): Promise<void> {
     await app.listen(
       Number(process.env.PORT ?? 4000),
       environment.NODE_ENV === 'production' ? '0.0.0.0' : '127.0.0.1',
+    );
+    console.log(
+      JSON.stringify({ event: 'API_READY', elapsedMs: Math.round(process.uptime() * 1000) }),
     );
   } catch (error) {
     // Иначе Redis/BullMQ оставляют процесс живым после ошибки getMe/username/listen.
