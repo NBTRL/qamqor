@@ -257,7 +257,10 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     if (!(await this.redis.client.set(lockKey, lock, 'PX', 60000, 'NX')))
       throw new ApiException(ErrorCode.RATE_LIMITED);
     try {
-      await this.bot.init(AbortSignal.timeout(10000));
+      // grammY declares the abort-controller polyfill type; Node's native signal
+      // implements the same runtime interface used by getMe and its retry loop.
+      const signal = AbortSignal.timeout(10000) as unknown as Parameters<Bot['init']>[0];
+      await this.bot.init(signal);
       await this.bot.handleUpdate(update);
       await this.redis.client.set(doneKey, '1', 'EX', 86400);
     } finally {
