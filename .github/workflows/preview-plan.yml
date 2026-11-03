@@ -1,0 +1,38 @@
+name: Plan closed Qamqor previews
+
+on:
+  pull_request_target:
+    types: [closed]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Closed PR number to inspect; never deletes resources
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == 'NBTRL/qamqor'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      # Privileged event: use only trusted main, never pull request code or dependencies.
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Install pinned official CLI
+        run: npm install --prefix "$RUNNER_TEMP/qamqor-cli" --ignore-scripts --no-audit --no-fund vercel@65.10.0
+      - name: List obsolete previews without deleting them
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_CLI_ENTRY: ${{ runner.temp }}/qamqor-cli/node_modules/vercel/dist/index.js
+          QAMQOR_PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+        run: node scripts/preview-cleanup-plan.mjs

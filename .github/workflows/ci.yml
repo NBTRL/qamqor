@@ -45,7 +45,7 @@ jobs:
       - run: pnpm lint
       - run: pnpm test
       - name: Check deployment safeguards
-        run: node --test scripts/registry-retention.test.mjs scripts/deploy-migrations.test.mjs scripts/publish-vercel.test.mjs
+        run: node --test scripts/registry-retention.test.mjs scripts/deploy-migrations.test.mjs scripts/publish-vercel.test.mjs scripts/production-monitor.test.mjs scripts/preview-cleanup-plan.test.mjs
       - name: Check generated API contracts
         run: |
           pnpm gen:api
