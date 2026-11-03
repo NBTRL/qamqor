@@ -44,6 +44,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm test
+      - name: Check registry retention safeguards
+        run: node --test scripts/registry-retention.test.mjs
       - name: Check generated API contracts
         run: |
           pnpm gen:api
