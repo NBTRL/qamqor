@@ -50,9 +50,16 @@ export async function publish({
   const deadline = Date.now() + 20 * 60 * 1000;
   while (Date.now() < deadline) {
     const current = api(`/v13/deployments/${deployment.id}?teamId=${teamId}`);
-    if (current.projectId !== projectId || current.meta?.githubCommitSha !== sha)
+    if (
+      current.projectId !== projectId ||
+      (current.meta?.githubCommitSha && current.meta.githubCommitSha !== sha)
+    )
       throw new Error('Deployment project/commit does not match the preflight');
-    if (current.readyState === 'READY') return { id: current.id, url: current.url, sha };
+    if (current.readyState === 'READY') {
+      if (current.meta?.githubCommitSha !== sha)
+        throw new Error('Ready deployment commit is unverified');
+      return { id: current.id, url: current.url, sha };
+    }
     if (['ERROR', 'CANCELED'].includes(current.readyState))
       throw new Error(`Deployment ${current.id} ended in ${current.readyState}`);
     await wait(10000);

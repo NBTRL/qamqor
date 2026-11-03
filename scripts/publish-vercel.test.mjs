@@ -111,3 +111,24 @@ test('dry run and invalid SHA never publish or delete', async () => {
   await assert.rejects(publish({ api: f.api, sha: 'main', log: quiet }), /exact tested commit/);
   assert.equal(f.writes.length, 0);
 });
+test('waits for queued deployment metadata and rejects a mismatched ready commit', async () => {
+  const f = fixture(30);
+  let reads = 0;
+  const api = (path, ...args) => {
+    const result = f.api(path, ...args);
+    if (path.startsWith('/v13/deployments/')) {
+      reads++;
+      if (reads === 1) return { ...result, readyState: 'QUEUED', meta: {} };
+    }
+    return result;
+  };
+  await publish({ api, sha, production: true, wait: async () => {}, log: quiet });
+  assert.equal(reads, 2);
+  const wrong = (path, ...args) => {
+    const result = f.api(path, ...args);
+    return path.startsWith('/v13/deployments/')
+      ? { ...result, meta: { githubCommitSha: rollback } }
+      : result;
+  };
+  await assert.rejects(publish({ api: wrong, sha, log: quiet }), /does not match/);
+});
