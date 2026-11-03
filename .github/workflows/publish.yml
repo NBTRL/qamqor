@@ -1,0 +1,76 @@
+name: Publish Qamqor after checks
+
+on:
+  workflow_run:
+    workflows: [Project checks]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Hold the lock through READY: concurrent releases cannot clean each other's images.
+concurrency:
+  group: qamqor-vercel-publication
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_repository.full_name == 'NBTRL/qamqor' &&
+       (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'pull_request'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      # Always execute the trusted default-branch release scripts, never PR code with this secret.
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Install pinned official CLI without repository lifecycle scripts
+        run: npm install --prefix "$RUNNER_TEMP/qamqor-cli" --ignore-scripts --no-audit --no-fund vercel@65.10.0
+      - name: Skip superseded commits and closed pull requests
+        id: ref
+        env:
+          EVENT: ${{ github.event.workflow_run.event }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+          MANUAL: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          node --input-type=module <<'JS'
+          import { appendFileSync } from 'node:fs';
+          let eligible = process.env.MANUAL === 'true';
+          if (!eligible) {
+            const base = 'https://api.github.com/repos/NBTRL/qamqor';
+            const path = process.env.EVENT === 'push'
+              ? '/commits/main'
+              : '/pulls?' + new URLSearchParams({ state: 'open', head: 'NBTRL:' + process.env.BRANCH });
+            const response = await fetch(base + path);
+            if (!response.ok) throw new Error('Cannot verify the current Git reference');
+            const data = await response.json();
+            eligible = process.env.EVENT === 'push'
+              ? process.env.BRANCH === 'main' && data.sha === process.env.SHA
+              : data.some(pr => pr.head.repo.full_name === 'NBTRL/qamqor' && pr.head.sha === process.env.SHA);
+          }
+          appendFileSync(process.env.GITHUB_OUTPUT, `eligible=${eligible}\n`);
+          JS
+      - name: Validate publication credential
+        if: steps.ref.outputs.eligible == 'true'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: test -n "$VERCEL_TOKEN" || { echo 'Configure the VERCEL_TOKEN repository secret before activating publication.'; exit 1; }
+      - name: Check capacity, clean if needed, publish exact tested commit
+        if: steps.ref.outputs.eligible == 'true'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_CLI_ENTRY: ${{ runner.temp }}/qamqor-cli/node_modules/vercel/dist/index.js
+          QAMQOR_DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          QAMQOR_DEPLOY_REF: ${{ github.event.workflow_run.head_branch || 'main' }}
+          QAMQOR_DEPLOY_PRODUCTION: ${{ (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') || (github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main') }}
+        run: node scripts/publish-vercel.mjs ${{ github.event_name == 'workflow_dispatch' && '--dry-run' || '' }}
