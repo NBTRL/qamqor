@@ -10,7 +10,7 @@
     "web": {
       "root": "apps/web",
       "framework": "nextjs",
-      "buildCommand": "pnpm --filter @club/shared build && pnpm run build",
+      "buildCommand": "node ../../scripts/deploy-migrations.mjs && pnpm --filter @club/shared build && pnpm run build",
       "bindings": [
         { "type": "service", "service": "api", "format": "url", "env": "API_INTERNAL_URL" }
       ]

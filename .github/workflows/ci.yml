@@ -44,8 +44,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm test
-      - name: Check registry retention safeguards
-        run: node --test scripts/registry-retention.test.mjs
+      - name: Check deployment safeguards
+        run: node --test scripts/registry-retention.test.mjs scripts/deploy-migrations.test.mjs
       - name: Check generated API contracts
         run: |
           pnpm gen:api
@@ -110,6 +110,11 @@ jobs:
           docker run --rm --network none \
             --mount "type=bind,source=$PWD/scripts/check-runtime.mjs,target=/app/check-runtime.mjs,readonly" \
             --entrypoint node qamqor-runtime:ci check-runtime.mjs /app
+      - name: Check production cold start without external network
+        run: |
+          docker run --rm --network none \
+            --mount "type=bind,source=$PWD/scripts/check-api-startup.mjs,target=/app/check-api-startup.mjs,readonly" \
+            --entrypoint node qamqor-runtime:ci check-api-startup.mjs /app
       - name: Stop isolated infrastructure
         if: always()
         run: docker compose down --volumes --remove-orphans
