@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { syncMonitorIssue } from './monitor-alert.mjs';
+import { syncMonitorIssue, completedChecks } from './monitor-alert.mjs';
 
 const marker = '<!-- qamqor-production-monitor:v1 -->';
 function fixture({ conclusion = 'failure', testing = false, issues = [] } = {}) {
@@ -48,7 +48,7 @@ test('one failure issue mentions only the owner and contains no raw logs or resp
   const writes = config.calls.filter((call) => call.method !== 'GET');
   assert.equal(writes.length, 1);
   assert.equal(writes[0].path, '/repos/NBTRL/qamqor/issues');
-  assert.deepEqual(writes[0].body.assignees, ['NBTRL']);
+  assert.equal(writes[0].body.assignees, undefined);
   assert.match(writes[0].body.body, /@NBTRL/);
   assert.match(writes[0].body.body, /https:\/\/github.com\/NBTRL\/qamqor\/actions\/runs\/100/);
 });
@@ -130,4 +130,52 @@ test('intentional cancellation is not reported as an outage', async () => {
   const config = fixture({ conclusion: 'cancelled' });
   assert.equal((await syncMonitorIssue(config)).notification, 'ignored-conclusion');
   assert.equal(config.calls.length, 1);
+});
+
+function checks(conclusion = 'success') {
+  return ['delay', 'health', 'next'].map((name) => ({
+    name,
+    status: 'completed',
+    conclusion: name === 'health' ? conclusion : 'success',
+    completed_at: '2026-11-04T08:00:00Z',
+  }));
+}
+
+test('a bot run notifies from its own job before the workflow completes, then closes on recovery', async () => {
+  for (const conclusion of ['failure', 'success']) {
+    const config = fixture({ issues: conclusion === 'success' ? [incident()] : [] });
+    config.run.status = 'in_progress';
+    config.run.conclusion = null;
+    const api = config.api;
+    config.api = async (path, ...args) =>
+      path.includes('/jobs?')
+        ? {
+            jobs: [
+              ...checks(conclusion),
+              { name: 'notify', status: 'in_progress', conclusion: null },
+            ],
+          }
+        : api(path, ...args);
+    assert.equal(
+      (await syncMonitorIssue(config)).notification,
+      conclusion === 'failure' ? 'incident-opened' : 'incident-closed',
+    );
+  }
+});
+
+test('job outcomes include timer and relay failures and reject incomplete or unknown results', () => {
+  for (const name of ['delay', 'health', 'next']) {
+    const jobs = checks();
+    jobs.find((job) => job.name === name).conclusion = 'failure';
+    assert.equal(completedChecks(jobs).conclusion, 'failure');
+  }
+  assert.equal(completedChecks(checks('cancelled')).conclusion, 'cancelled');
+  assert.equal(completedChecks(checks('skipped')).conclusion, 'skipped');
+  for (const jobs of [
+    checks().slice(1),
+    [...checks(), checks()[0]],
+    checks().map((job) => ({ ...job, status: 'in_progress' })),
+    checks().map((job) => ({ ...job, conclusion: 'unknown' })),
+  ])
+    assert.throws(() => completedChecks(jobs), /MONITOR_ALERT_CHECKS_INCOMPLETE/);
 });
