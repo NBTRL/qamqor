@@ -29,7 +29,10 @@ export function githubApi(token, request = fetch) {
       throw new Error('MONITOR_GITHUB_REQUEST_FAILED');
     }
     if (method === 'POST' && response.status === 204) return;
-    if (method !== 'GET' || response.status !== 200)
+    if (
+      !((method === 'GET' || method === 'PATCH') && response.status === 200) &&
+      !(method === 'POST' && response.status === 201)
+    )
       throw new Error(`MONITOR_GITHUB_HTTP_${response.status}`);
     try {
       return await response.json();
