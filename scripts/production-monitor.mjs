@@ -6,6 +6,7 @@ import { cliApi } from './registry-retention.mjs';
 const teamId = 'team_ZpeBcU8O33dkdri3Ez2KuouL';
 const projectId = 'prj_T3Gc0oRzs9Tc6azNqkeg7QFVVZlt';
 const origin = 'https://qamqor-tawny.vercel.app';
+const hostname = new URL(origin).hostname;
 
 export function validateRuntimeSummary(lines) {
   const summary = lines.find((line) => line.type === 'summary');
@@ -28,8 +29,22 @@ export async function inspectProduction({
       const project = api(`/v9/projects/${projectId}?teamId=${teamId}`);
       if (project.id !== projectId || project.accountId !== teamId)
         throw new Error('PROJECT_SCOPE_MISMATCH');
-      const production = project.targets?.production;
-      if (production?.readyState !== 'READY' || !production.id?.startsWith('dpl_'))
+      // The project target can be a BUILDING candidate while traffic still uses the
+      // previous deployment. Resolve the public alias to monitor the serving version.
+      const alias = api(`/v4/aliases/${hostname}?teamId=${teamId}`);
+      if (
+        alias.alias !== hostname ||
+        alias.projectId !== projectId ||
+        !/^dpl_[A-Za-z0-9]+$/.test(alias.deploymentId ?? '')
+      )
+        throw new Error('PRODUCTION_ALIAS_UNVERIFIED');
+      const production = api(`/v13/deployments/${alias.deploymentId}?teamId=${teamId}`);
+      if (
+        production.id !== alias.deploymentId ||
+        production.projectId !== projectId ||
+        production.target !== 'production' ||
+        production.readyState !== 'READY'
+      )
         throw new Error('PRODUCTION_NOT_READY');
       for (const path of ['/api/v1/health', '/api/v1/public/stats']) {
         const response = await request(origin + path, {
