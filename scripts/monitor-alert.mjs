@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { githubApi } from './monitor-clock.mjs';
 
@@ -15,9 +14,36 @@ function validRun(run) {
     run.head_branch === 'main' &&
     run.head_repository?.full_name === 'NBTRL/qamqor' &&
     ['schedule', 'workflow_dispatch', 'workflow_run'].includes(run.event) &&
-    run.status === 'completed' &&
+    ['in_progress', 'completed'].includes(run.status) &&
     Number.isFinite(Date.parse(run.updated_at))
   );
+}
+
+export function completedChecks(jobs) {
+  if (!Array.isArray(jobs)) throw new Error('MONITOR_ALERT_JOBS_INVALID');
+  const checks = jobs.filter((job) => ['delay', 'health', 'next'].includes(job.name));
+  if (
+    checks.length !== 3 ||
+    new Set(checks.map((job) => job.name)).size !== 3 ||
+    checks.some(
+      (job) =>
+        job.status !== 'completed' ||
+        !['success', 'failure', 'timed_out', 'skipped', 'cancelled'].includes(job.conclusion),
+    )
+  )
+    throw new Error('MONITOR_ALERT_CHECKS_INCOMPLETE');
+  const finished = checks.map((job) => Date.parse(job.completed_at)).filter(Number.isFinite);
+  if (!finished.length) throw new Error('MONITOR_ALERT_COMPLETION_UNKNOWN');
+  return {
+    conclusion: checks.some((job) => job.conclusion === 'cancelled')
+      ? 'cancelled'
+      : checks.some((job) => ['failure', 'timed_out'].includes(job.conclusion))
+        ? 'failure'
+        : checks.find((job) => job.name === 'health').conclusion === 'success'
+          ? 'success'
+          : 'skipped',
+    updated_at: new Date(Math.max(...finished)).toISOString(),
+  };
 }
 
 export async function syncMonitorIssue({ api, runId }) {
@@ -25,6 +51,10 @@ export async function syncMonitorIssue({ api, runId }) {
   const run = await api(`${base}/actions/runs/${runId}`);
   if (!validRun(run) || String(run.id) !== String(runId))
     throw new Error('MONITOR_ALERT_SOURCE_REJECTED');
+  if (run.status === 'in_progress') {
+    const jobs = await api(`${base}/actions/runs/${runId}/jobs?per_page=100`);
+    Object.assign(run, completedChecks(jobs.jobs));
+  }
   if (!['success', 'failure', 'timed_out'].includes(run.conclusion))
     return { notification: 'ignored-conclusion' };
   const recent = await api(`${base}/actions/workflows/monitor.yml/runs?per_page=100`);
@@ -34,6 +64,7 @@ export async function syncMonitorIssue({ api, runId }) {
     recent.workflow_runs.some(
       (other) =>
         validRun(other) &&
+        other.status === 'completed' &&
         isTest(other) === isTest(run) &&
         ['success', 'failure', 'timed_out'].includes(other.conclusion) &&
         Date.parse(other.updated_at) > Date.parse(run.updated_at),
@@ -72,7 +103,6 @@ export async function syncMonitorIssue({ api, runId }) {
           ? 'Это тест канала уведомлений. Ожидаемая ошибка добавлена после проверки production; приложение не останавливалось.'
           : 'Мониторинг Qamqor обнаружил ошибку. Проверь API, worker и механизм следующих запусков.'
       }\n\n[Неуспешная проверка](${link}).\n\nПовторные сбои сохраняют эту issue без новых сообщений. Следующая успешная проверка закроет её автоматически.`,
-      assignees: ['NBTRL'],
     });
     if (!Number.isSafeInteger(created?.number)) throw new Error('MONITOR_ALERT_CREATE_UNVERIFIED');
     return { notification: 'incident-opened', issue: created.number };
@@ -90,18 +120,17 @@ export async function syncMonitorIssue({ api, runId }) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     if (
-      process.env.GITHUB_EVENT_NAME !== 'workflow_run' ||
+      !['workflow_run', 'workflow_dispatch', 'schedule'].includes(process.env.GITHUB_EVENT_NAME) ||
       process.env.GITHUB_REPOSITORY !== 'NBTRL/qamqor' ||
       process.env.GITHUB_WORKFLOW_REF !==
-        'NBTRL/qamqor/.github/workflows/monitor-alert.yml@refs/heads/main'
+        'NBTRL/qamqor/.github/workflows/monitor.yml@refs/heads/main'
     )
       throw new Error('MONITOR_ALERT_CONTEXT_REJECTED');
-    const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
     console.log(
       JSON.stringify(
         await syncMonitorIssue({
           api: githubApi(process.env.GITHUB_TOKEN),
-          runId: event.workflow_run?.id,
+          runId: process.env.GITHUB_RUN_ID,
         }),
       ),
     );
