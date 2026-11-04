@@ -1,4 +1,5 @@
 name: Monitor Qamqor production
+run-name: Qamqor production monitor / ${{ inputs.mode || 'now' }}
 
 on:
   schedule:
@@ -7,23 +8,58 @@ on:
     workflows: [Publish Qamqor after checks]
     types: [completed]
   workflow_dispatch:
+    inputs:
+      mode:
+        description: Immediate check, recurring clock, or bounded clock test
+        type: choice
+        options: [now, clock, clock-test]
+        default: now
+      test_checks:
+        description: Number of checks in the bounded clock test (ignored otherwise)
+        type: choice
+        options: ['2', '1']
+        default: '2'
+      test_failure:
+        description: Fail the first bounded test check to verify continuation and failure notifications
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: qamqor-production-monitor
+  # A waiting clock must not block immediate post-deploy/manual checks.
+  group: qamqor-production-monitor-${{ inputs.mode || 'now' }}
   cancel-in-progress: false
 
 jobs:
+  delay:
+    if: >-
+      github.repository == 'NBTRL/qamqor' && github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' &&
+      (inputs.mode == 'clock-test' || (inputs.mode == 'clock' && vars.QAMQOR_MONITOR_CLOCK_ENABLED == 'true'))
+    environment:
+      name: ${{ inputs.mode == 'clock-test' && 'qamqor-monitor-clock-test' || 'qamqor-monitor-clock' }}
+      deployment: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 1
+    steps:
+      - name: Environment wait timer has elapsed
+        run: echo 'The runner starts after the environment timer, without an idle runner sleep.'
+
   health:
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    needs: delay
+    if: >-
+      !cancelled() && github.repository == 'NBTRL/qamqor' && github.ref == 'refs/heads/main' &&
+      (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success') &&
+      (needs.delay.result == 'success' ||
+      (needs.delay.result == 'skipped' && inputs.mode != 'clock' && inputs.mode != 'clock-test'))
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          ref: main
+          ref: ${{ github.workflow_sha }}
           persist-credentials: false
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
@@ -36,3 +72,39 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_CLI_ENTRY: ${{ runner.temp }}/qamqor-cli/node_modules/vercel/dist/index.js
         run: node scripts/production-monitor.mjs
+      - name: Intentional failure in bounded clock test
+        if: inputs.mode == 'clock-test' && inputs.test_checks == '2' && inputs.test_failure
+        run: |
+          echo 'MONITOR_SELF_TEST_EXPECTED_FAILURE: production checks passed; verify the next test run and notification.'
+          exit 1
+
+  next:
+    # A failed health check must still arrange the next check. Intentional cancellation stops it.
+    needs: health
+    if: >-
+      !cancelled() && github.repository == 'NBTRL/qamqor' && github.ref == 'refs/heads/main' &&
+      (needs.health.result == 'success' || needs.health.result == 'failure')
+    concurrency:
+      group: qamqor-production-monitor-relay
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      actions: write
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Ensure one next check exists
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          QAMQOR_MONITOR_CLOCK_ENABLED: ${{ vars.QAMQOR_MONITOR_CLOCK_ENABLED }}
+          MONITOR_MODE: ${{ inputs.mode || 'now' }}
+          MONITOR_TEST_CHECKS: ${{ inputs.test_checks || '2' }}
+        run: node scripts/monitor-clock.mjs
